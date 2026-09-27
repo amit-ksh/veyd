@@ -112,7 +112,7 @@ Do not add in-app rule editing or publication controls.
 ## Checkpoint record
 
 - Date: 2026-09-27
-- Commit: Pending (will be recorded upon commit)
+- Commit: 8d32c32
 - Reviewer: Automated agent verification & manual checklist
 - Result: Passed
 - Notes:
