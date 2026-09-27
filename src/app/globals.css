@@ -18,38 +18,43 @@ body {
     --font-sans: var(--font-sans);
   }
   :root {
-    --background: oklch(1 0 0);
-    --foreground: oklch(0.145 0 0);
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.145 0 0);
-    --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.145 0 0);
-    --primary: oklch(0.205 0 0);
-    --primary-foreground: oklch(0.985 0 0);
-    --secondary: oklch(0.97 0 0);
-    --secondary-foreground: oklch(0.205 0 0);
-    --muted: oklch(0.97 0 0);
-    --muted-foreground: oklch(0.556 0 0);
-    --accent: oklch(0.97 0 0);
-    --accent-foreground: oklch(0.205 0 0);
-    --destructive: oklch(0.577 0.245 27.325);
-    --border: oklch(0.922 0 0);
-    --input: oklch(0.922 0 0);
-    --ring: oklch(0.708 0 0);
-    --chart-1: oklch(0.87 0 0);
-    --chart-2: oklch(0.556 0 0);
-    --chart-3: oklch(0.439 0 0);
-    --chart-4: oklch(0.371 0 0);
-    --chart-5: oklch(0.269 0 0);
-    --radius: 0.625rem;
-    --sidebar: oklch(0.985 0 0);
-    --sidebar-foreground: oklch(0.145 0 0);
-    --sidebar-primary: oklch(0.205 0 0);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.97 0 0);
-    --sidebar-accent-foreground: oklch(0.205 0 0);
-    --sidebar-border: oklch(0.922 0 0);
-    --sidebar-ring: oklch(0.708 0 0);
+    /* Milestone 8 Core Palette */
+    --ink: #020618;
+    --highlight: #fdfe85;
+    --surface: #ffffff;
+    --accent: #00c9d2;
+    --accent-hover: #00b0b8;
+    --accent-light: #e6fafb;
+
+    /* Accessible derived neutral and UI tokens */
+    --background: #f8fafc;
+    --foreground: #020618;
+    --card: #ffffff;
+    --card-foreground: #020618;
+    --popover: #ffffff;
+    --popover-foreground: #020618;
+    --primary: #020618;
+    --primary-foreground: #ffffff;
+    --secondary: #f1f5f9;
+    --secondary-foreground: #020618;
+    --muted: #f8fafc;
+    --muted-foreground: #64748b;
+    --border: #e2e8f0;
+    --border-strong: #cbd5e1;
+    --input: #e2e8f0;
+    --ring: #00c9d2;
+    --radius: 0.75rem;
+
+    /* Semantic Status Tokens */
+    --status-success: #059669;
+    --status-success-bg: #ecfdf5;
+    --status-success-border: #a7f3d0;
+    --status-warning: #b45309;
+    --status-warning-bg: #fffbeb;
+    --status-warning-border: #fde68a;
+    --status-error: #dc2626;
+    --status-error-bg: #fef2f2;
+    --status-error-border: #fecaca;
   }
   .dark {
     --background: oklch(0.145 0 0);
@@ -86,12 +91,28 @@ body {
   }
   * {
     @apply border-border;
-    outline-color: color-mix(in oklch, var(--ring) 50%, transparent);
   }
   body {
     @apply bg-background text-foreground;
+    color: var(--ink);
   }
   html {
     @apply font-sans;
+  }
+}
+
+/* Accessible focus ring across all interactive controls */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Respect user preference for reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

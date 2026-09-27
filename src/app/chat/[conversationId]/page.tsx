@@ -10,5 +10,5 @@ export default function ExistingChatPage({
 }: {
   params: { conversationId: string };
 }) {
-  return <AppShell initialConversationId={params.conversationId} />;
+  return <AppShell initialTab="chat" initialConversationId={params.conversationId} />;
 }

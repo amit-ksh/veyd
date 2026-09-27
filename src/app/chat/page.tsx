@@ -6,5 +6,5 @@ export const metadata = {
 };
 
 export default function ChatPage() {
-  return <AppShell />;
+  return <AppShell initialTab="chat" />;
 }

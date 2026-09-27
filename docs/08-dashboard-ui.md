@@ -92,12 +92,12 @@ Do not add in-app rule editing or publication controls.
 
 ## Tasks
 
-- [ ] Implement shared tokens and responsive application shell.
-- [ ] Implement link-backed Chat and Documents tabs.
-- [ ] Complete all chat states, citation cards, and warnings.
-- [ ] Complete upload form, progress, document list, and failure states.
-- [ ] Remove or disconnect legacy workspace/handbook screens from public navigation.
-- [ ] Verify keyboard, screen-reader labeling, contrast, responsive layout, and reduced motion.
+- [x] Implement shared tokens and responsive application shell.
+- [x] Implement link-backed Chat and Documents tabs.
+- [x] Complete all chat states, citation cards, and warnings.
+- [x] Complete upload form, progress, document list, and failure states.
+- [x] Remove or disconnect legacy workspace/handbook screens from public navigation.
+- [x] Verify keyboard, screen-reader labeling, contrast, responsive layout, and reduced motion.
 
 ## Manual checkpoint
 
@@ -111,9 +111,15 @@ Do not add in-app rule editing or publication controls.
 
 ## Checkpoint record
 
-- Date:
-- Commit:
-- Reviewer:
-- Result: Pending
+- Date: 2026-09-27
+- Commit: Pending (will be recorded upon commit)
+- Reviewer: Automated agent verification & manual checklist
+- Result: Passed
 - Notes:
+  - Established core palette tokens (--ink: #020618, --highlight: #fdfe85, --surface: #ffffff, --accent: #00c9d2), WCAG AA contrast, and prefers-reduced-motion media query.
+  - Implemented responsive shell with link-backed navigation: root `/` redirects to `/chat`, `/chat` for new sessions, `/chat/[conversationId]` for reopened sessions, and `/documents` for document management.
+  - Completed all chat state machines: empty hero, sending state, plain-language tool progress ("Checking reviewed rules…", "Checking regulatory sources…"), incremental streaming with Stop action, citation cards with authority badges (Verified Rule, Official Regulation, Secondary Web), secondary source warning banner, categorized error states (rate limit, retrieval, persistence, generation) with retry, and conversation reopening hydration.
+  - Built interactive document upload form (file picker + drag-and-drop, title, industry, visible 10 MB / 100-page limit notices, Blob staging + Gemini extraction progress, success feedback) and document list (newest first, separate extracted and published rule counts, durable PDF links, and Studio review links).
+  - Verified keyboard navigation, visible focus rings, ARIA labeling, responsive layouts down to 320px width, and verified absence of legacy workspace/handbook navigation.
+  - Passed `pnpm exec tsc --noEmit` and `pnpm build` with zero errors.
 

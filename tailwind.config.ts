@@ -26,9 +26,14 @@ export default {
           DEFAULT: "var(--muted)",
           foreground: "var(--muted-foreground)",
         },
+        ink: "var(--ink)",
+        highlight: "var(--highlight)",
+        surface: "var(--surface)",
         accent: {
           DEFAULT: "var(--accent)",
-          foreground: "var(--accent-foreground)",
+          hover: "var(--accent-hover)",
+          light: "var(--accent-light)",
+          foreground: "#020618",
         },
         popover: {
           DEFAULT: "var(--popover)",

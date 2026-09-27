@@ -21,6 +21,7 @@ export interface ComplianceDocumentListItem {
   uploadedAt: string;
   extractionCompletedAt?: string | null;
   failureMessage?: string | null;
+  fileUrl?: string | null;
 }
 
 export interface ComplianceDocumentDetail {

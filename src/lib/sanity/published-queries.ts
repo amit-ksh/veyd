@@ -31,6 +31,7 @@ export function buildDocumentListQuery(offset: number, limit: number) {
       _id, title, industry, originalFileName, fileSizeBytes, pageCount,
       processingStatus, extractedRuleCount, uploadedAt, extractionCompletedAt,
       failureMessage,
+      "fileUrl": fileAsset.asset->url,
       "publishedRuleCount": count(*[_type == "complianceRule" && !(_id in path("drafts.**")) && sourceDocument._ref == ^._id])
     }
   `);
