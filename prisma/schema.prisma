@@ -1,0 +1,154 @@
+// Universal Cross-Industry Compliance Engine
+// Data model: User -> Workspace (org) -> Membership -> Progress / Verification
+// Handbook *content* (chapters, rules, industries) lives in Sanity.
+// Postgres/Prisma holds identity, workspace state, progress, and audit trail —
+// the things that must be transactional and queryable, not editorial content.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(cuid())
+  name          String?
+  email         String   @unique
+  emailVerified Boolean  @default(false)
+  image         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  sessions    Session[]
+  accounts    Account[]
+  memberships Membership[]
+  progress    HandbookProgress[]
+  verifications VerificationLog[]
+}
+
+// --- better-auth required tables ---
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Account {
+  id                    String    @id @default(cuid())
+  userId                String
+  accountId             String
+  providerId            String
+  accessToken           String?
+  refreshToken          String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  idToken               String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, accountId])
+}
+
+model Verification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+}
+
+// --- product domain ---
+
+// A Workspace represents one company/org going through onboarding & compliance.
+model Workspace {
+  id           String   @id @default(cuid())
+  name         String
+  slug         String   @unique
+  // Which Sanity "industry" document(s) this workspace's handbook is built from.
+  industrySlug String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  memberships   Membership[]
+  progress      HandbookProgress[]
+  verifications VerificationLog[]
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+model Membership {
+  id          String   @id @default(cuid())
+  userId      String
+  workspaceId String
+  role        Role     @default(MEMBER)
+  createdAt   DateTime @default(now())
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workspaceId])
+}
+
+enum ProgressStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+// Tracks a member's progress through a handbook chapter (chapters live in Sanity,
+// referenced here by their Sanity document _id / slug).
+model HandbookProgress {
+  id            String         @id @default(cuid())
+  userId        String
+  workspaceId   String
+  chapterSlug   String
+  status        ProgressStatus @default(NOT_STARTED)
+  quizScore     Int?
+  acknowledgedAt DateTime?
+  updatedAt     DateTime       @updatedAt
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workspaceId, chapterSlug])
+}
+
+enum VerificationOutcome {
+  PASS
+  FAIL
+  NEEDS_REVIEW
+}
+
+// Every time the MCP tool (or a human) runs a compliance check, we log it here.
+// This is the audit trail an AI agent's "verify_compliance" tool writes to.
+model VerificationLog {
+  id          String              @id @default(cuid())
+  workspaceId String
+  userId      String?
+  ruleSlug    String
+  ruleTitle   String
+  input       Json
+  outcome     VerificationOutcome
+  reasoning   String
+  source      String              @default("mcp") // "mcp" | "manual"
+  createdAt   DateTime            @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User?     @relation(fields: [userId], references: [id])
+}
