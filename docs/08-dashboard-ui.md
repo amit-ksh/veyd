@@ -34,12 +34,14 @@ The UI direction is a restrained product workspace:
 
 ## Routes and navigation
 
-- `/` redirects to `/chat`.
-- `/chat` starts a new conversation.
-- `/chat/[conversationId]` reopens an exact conversation.
-- `/documents` displays upload controls and document status.
+- Unauthenticated users are gated with the Sign In / Sign Up interface (`AuthForm`) before platform access.
+- Authenticated users access:
+  - `/` redirects to `/chat`.
+  - `/chat` starts a new conversation.
+  - `/chat/[conversationId]` reopens a user's conversation.
+  - `/documents` displays upload controls and document status.
+- The header displays the authenticated user profile and a Sign Out action.
 - The Chat and Documents tabs use links so refresh/back/forward navigation works.
-- Do not add authentication, workspace selection, global search, templates, or conversation history navigation.
 
 ## Chat view
 

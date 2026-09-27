@@ -1,8 +1,6 @@
-// Universal Cross-Industry Compliance Engine
-// Data model: User -> Workspace (org) -> Membership -> Progress / Verification
-// Handbook *content* (chapters, rules, industries) lives in Sanity.
-// Postgres/Prisma holds identity, workspace state, progress, and audit trail —
-// the things that must be transactional and queryable, not editorial content.
+// Compliance Research Application Data Model
+// Identity & Sessions (better-auth) + User-Scoped Chat Storage (Prisma)
+// Compliance rules & documents live in Sanity Content Lake.
 
 generator client {
   provider = "prisma-client-js"
@@ -14,22 +12,20 @@ datasource db {
 }
 
 model User {
-  id            String   @id @default(cuid())
+  id            String    @id @default(cuid())
   name          String?
-  email         String   @unique
-  emailVerified Boolean  @default(false)
+  email         String    @unique
+  emailVerified Boolean   @default(false)
   image         String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
-  sessions    Session[]
-  accounts    Account[]
-  memberships Membership[]
-  progress    HandbookProgress[]
-  verifications VerificationLog[]
+  sessions      Session[]
+  accounts      Account[]
+  conversations Conversation[]
 }
 
-// --- better-auth required tables ---
+// --- better-auth tables ---
 model Session {
   id        String   @id @default(cuid())
   userId    String
@@ -62,93 +58,38 @@ model Account {
 }
 
 model Verification {
-  id         String   @id @default(cuid())
+  id         String    @id @default(cuid())
   identifier String
   value      String
   expiresAt  DateTime
-  createdAt  DateTime @default(now())
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime? @updatedAt
 }
 
-// --- product domain ---
+// --- User-Scoped Chat Persistence ---
 
-// A Workspace represents one company/org going through onboarding & compliance.
-model Workspace {
-  id           String   @id @default(cuid())
-  name         String
-  slug         String   @unique
-  // Which Sanity "industry" document(s) this workspace's handbook is built from.
-  industrySlug String
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  memberships   Membership[]
-  progress      HandbookProgress[]
-  verifications VerificationLog[]
-}
-
-enum Role {
-  OWNER
-  ADMIN
-  MEMBER
-}
-
-model Membership {
-  id          String   @id @default(cuid())
-  userId      String
-  workspaceId String
-  role        Role     @default(MEMBER)
-  createdAt   DateTime @default(now())
+model Conversation {
+  id        String    @id @default(cuid())
+  userId    String
+  title     String    @default("Compliance Research Chat")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  messages  Message[]
 
-  @@unique([userId, workspaceId])
+  @@index([userId, updatedAt])
 }
 
-enum ProgressStatus {
-  NOT_STARTED
-  IN_PROGRESS
-  COMPLETED
-}
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  role           String       // "user" | "assistant" | "system"
+  content        String       // text content or serialized parts
+  citations      Json?        // citations, rule references, source badges
+  createdAt      DateTime     @default(now())
 
-// Tracks a member's progress through a handbook chapter (chapters live in Sanity,
-// referenced here by their Sanity document _id / slug).
-model HandbookProgress {
-  id            String         @id @default(cuid())
-  userId        String
-  workspaceId   String
-  chapterSlug   String
-  status        ProgressStatus @default(NOT_STARTED)
-  quizScore     Int?
-  acknowledgedAt DateTime?
-  updatedAt     DateTime       @updatedAt
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, workspaceId, chapterSlug])
-}
-
-enum VerificationOutcome {
-  PASS
-  FAIL
-  NEEDS_REVIEW
-}
-
-// Every time the MCP tool (or a human) runs a compliance check, we log it here.
-// This is the audit trail an AI agent's "verify_compliance" tool writes to.
-model VerificationLog {
-  id          String              @id @default(cuid())
-  workspaceId String
-  userId      String?
-  ruleSlug    String
-  ruleTitle   String
-  input       Json
-  outcome     VerificationOutcome
-  reasoning   String
-  source      String              @default("mcp") // "mcp" | "manual"
-  createdAt   DateTime            @default(now())
-
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  user      User?     @relation(fields: [userId], references: [id])
+  @@index([conversationId, createdAt])
 }

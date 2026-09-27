@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@sanity/icons':
+        specifier: ^5.2.2
+        version: 5.2.2(react@18.3.1)
       '@sanity/vision':
         specifier: ^3.62.0
         version: 3.99.0(@babel/runtime@7.29.7)(@codemirror/lint@6.9.7)(@codemirror/theme-one-dark@6.1.3)(@emotion/is-prop-valid@1.4.0)(codemirror@6.0.2)(react-dom@18.3.1(react@18.3.1))(react-is@18.3.1)(react@18.3.1)(styled-components@6.5.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1))
@@ -1529,6 +1532,12 @@ packages:
     engines: {node: '>=14.0.0'}
     peerDependencies:
       react: ^18.3 || ^19.0.0-0
+
+  '@sanity/icons@5.2.2':
+    resolution: {integrity: sha512-v+5dMjYJ6pC4x8IS/4O/GvQBet5GqsXsqJxBiiS6WHZt21EgntpW+q5hxU3dO4q/njiyR8O1JsdLAs3NranoXA==}
+    engines: {node: '>=20.19 <22 || >=22.12'}
+    peerDependencies:
+      react: ^18 || ^19
 
   '@sanity/id-utils@1.1.0':
     resolution: {integrity: sha512-A+DujVHCO3/+0DuzinmfCRQacIWVIherK0AHqFDoDOSgxx+Bur1kLhzX8fn7PdB2uZilxu2zWOr+UaGcj5zGbA==}
@@ -6451,6 +6460,10 @@ snapshots:
   '@sanity/generate-help-url@3.0.1': {}
 
   '@sanity/icons@3.8.0(react@18.3.1)':
+    dependencies:
+      react: 18.3.1
+
+  '@sanity/icons@5.2.2(react@18.3.1)':
     dependencies:
       react: 18.3.1
 

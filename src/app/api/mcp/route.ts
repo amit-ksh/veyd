@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { mcpTools } from "@/lib/mcp/tools";
 
 // Exposes the compliance engine as a Model Context Protocol server, so any
@@ -15,7 +15,7 @@ function buildServer() {
   for (const tool of mcpTools) {
     server.tool(tool.name, tool.description, tool.inputSchema.shape, async (args: any) => {
       const result = await tool.handler(args);
-      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
     });
   }
 
@@ -35,13 +35,10 @@ export async function POST(req: NextRequest) {
   }
 
   const server = buildServer();
-  const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
+  const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined });
   await server.connect(transport);
 
-  const body = await req.json();
-  // Adapt the transport's Node-style handler to the Fetch Request/Response
-  // shape Next.js route handlers use.
-  return transport.handleRequest(req as unknown as Request, body);
+  return transport.handleRequest(req);
 }
 
 export async function GET() {

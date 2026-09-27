@@ -1,29 +1,29 @@
-# Milestone 6 — Permanent Conversation Persistence
+# Milestone 6 — User-Scoped Conversation Persistence in PostgreSQL
 
 ## Outcome
 
-Persist user and assistant messages in Sanity and allow a conversation to be reopened only when its exact unguessable ID is present in the URL. Do not add a history browser, ownership model, or deletion flow.
+Persist user and assistant messages in PostgreSQL via Prisma, scoped to the authenticated user (`User -> Conversation -> Message`). Conversations are private to the user who created them, while compliance rules and document assets remain queried from Sanity Content Lake.
 
 ## URL and API behavior
 
-- `/chat` starts a new conversation on the first submitted message.
-- `/chat/[conversationId]` loads one exact conversation.
-- `GET /api/conversations/[conversationId]` returns the conversation and ordered messages.
-- There is no `GET /api/conversations`, search endpoint, recent-history endpoint, or delete endpoint.
-
-The ID is a hard-to-guess locator, not authorization. The application is public and unauthenticated; documentation and UI copy must not claim that the conversation is private.
+- `/chat` starts a new conversation for the authenticated user.
+- `/chat/[conversationId]` loads the user's specific conversation.
+- `GET /api/conversations/[conversationId]` returns the conversation and ordered messages for the authenticated user.
+- `GET /api/conversations` returns the list of conversations belonging to the current user.
+- Requests without a valid session receive HTTP `401 Unauthorized`.
+- Attempting to access another user's conversation returns HTTP `404 Not Found` or `403 Forbidden`.
 
 ## Persistence sequence
 
 For the first message:
 
-1. Create a `conversation` with a Sanity-generated ID.
-2. Persist the user message with a strong reference to it.
+1. Create a `Conversation` record in PostgreSQL linked to `session.user.id`.
+2. Persist the user message record linked to the conversation.
 3. Send the conversation ID to the client as an early stream data part.
 4. Replace the browser URL with `/chat/[conversationId]` without interrupting the stream.
-5. Run retrieval and generation.
-6. On successful completion, persist the final assistant text and normalized citations.
-7. Patch `conversation.updatedAt` after each successful message creation.
+5. Run Sanity retrieval and Gemini synthesis.
+6. On successful completion, persist the assistant response and citations in PostgreSQL.
+7. Update `conversation.updatedAt`.
 
 For later messages, verify the exact conversation exists before writing. Never accept a client-supplied conversation ID for creation.
 

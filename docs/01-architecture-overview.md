@@ -10,6 +10,7 @@ Replace the current workspace/handbook foundation with the shared infrastructure
 flowchart LR
   Browser[Next.js browser UI]
   App[Next.js on Vercel]
+  Postgres[PostgreSQL via Prisma]
   Blob[Private Vercel Blob]
   Redis[Upstash Redis]
   Sanity[Sanity Content Lake]
@@ -18,8 +19,9 @@ flowchart LR
   Firecrawl[Firecrawl API]
   MCP[MCP client]
 
+  Browser -->|auth, JSON, streamed chat| App
   Browser -->|direct temporary PDF upload| Blob
-  Browser -->|JSON and streamed chat| App
+  App -->|users, sessions, user chats| Postgres
   App --> Redis
   App --> Blob
   App --> Sanity
@@ -29,7 +31,7 @@ flowchart LR
   MCP -->|Bearer + Streamable HTTP| App
 ```
 
-Sanity is the durable store. Vercel Blob must be deleted after each ingestion attempt. Gemini and Firecrawl are processors, not databases.
+Sanity is the durable store for compliance PDF assets, extracted rules, and editorial content. PostgreSQL (managed via Prisma) is the transactional store for user identities, Better-Auth sessions, and user-scoped chat conversations. Vercel Blob is temporary upload ingress.
 
 ## Target source structure
 
@@ -37,6 +39,7 @@ Sanity is the durable store. Vercel Blob must be deleted after each ingestion at
 src/
   app/
     api/
+      auth/[...all]/route.ts
       blob/upload/route.ts
       documents/ingest/route.ts
       documents/route.ts
@@ -44,12 +47,17 @@ src/
       chat/route.ts
       conversations/[conversationId]/route.ts
       mcp/route.ts
+      health/route.ts
     page.tsx
   components/
     app-shell.tsx
+    AuthForm.tsx
     chat/
     documents/
   lib/
+    auth.ts
+    auth-client.ts
+    prisma.ts
     config.ts
     errors.ts
     http.ts
@@ -64,6 +72,8 @@ src/
       research.ts
     mcp/
       tools.ts
+prisma/
+  schema.prisma
 sanity/
   schemaTypes/
 ```
