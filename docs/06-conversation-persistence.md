@@ -69,13 +69,13 @@ Return `404` for an unknown ID. Never return a list of other IDs or include Stud
 
 ## Tasks
 
-- [ ] Extend the message schema with `clientMessageId` and update its query projection.
-- [ ] Implement create-conversation and append-message services.
-- [ ] Integrate persistence into the chat stream lifecycle.
-- [ ] Implement the exact-ID conversation read endpoint.
-- [ ] Add `/chat` and `/chat/[conversationId]` routing behavior.
-- [ ] Add duplicate-submit protection and failure banners.
-- [ ] Confirm no list or delete capability exists in API or UI.
+- [x] Extend the message schema with `clientMessageId` and update its query projection.
+- [x] Implement create-conversation and append-message services.
+- [x] Integrate persistence into the chat stream lifecycle.
+- [x] Implement the exact-ID conversation read endpoint.
+- [x] Add `/chat` and `/chat/[conversationId]` routing behavior.
+- [x] Add duplicate-submit protection and failure banners.
+- [x] Confirm no list or delete capability exists in API or UI.
 
 ## Manual checkpoint
 

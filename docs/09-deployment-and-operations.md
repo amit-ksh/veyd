@@ -28,7 +28,7 @@ Deploy the Next.js application to Vercel and the standalone Studio to Sanity, co
 - Rotate `MCP_TOOL_SECRET`, Sanity tokens, Gemini key, Firecrawl key, Blob token, and Upstash token independently.
 - After rotating a secret, redeploy every environment that uses it.
 - Never log environment values, Authorization headers, signed Blob tokens, or Sanity mutation bodies.
-- `REGULATORY_OFFICIAL_DOMAINS` is configuration, not a security boundary; secondary fallback remains clearly labeled.
+- Secondary web source search remains clearly labeled and guides users to primary official dockets.
 
 ## Observability
 

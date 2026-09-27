@@ -14,7 +14,6 @@ const serverEnvSchema = z.object({
   GOOGLE_GENERATIVE_AI_API_KEY: z.string().min(1, "GOOGLE_GENERATIVE_AI_API_KEY is required"),
   GEMINI_MODEL: z.string().min(1).default("gemini-3.8-flash"),
   FIRECRAWL_API_KEY: z.string().min(1, "FIRECRAWL_API_KEY is required"),
-  REGULATORY_OFFICIAL_DOMAINS: z.string().min(1).default("fda.gov,osha.gov,usda.gov"),
   BLOB_READ_WRITE_TOKEN: z.string().min(1, "BLOB_READ_WRITE_TOKEN is required"),
   UPSTASH_REDIS_REST_URL: z.string().url("UPSTASH_REDIS_REST_URL must be a valid URL"),
   UPSTASH_REDIS_REST_TOKEN: z.string().min(1, "UPSTASH_REDIS_REST_TOKEN is required"),

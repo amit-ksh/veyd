@@ -61,9 +61,9 @@ Input:
 
 Behavior:
 
-1. Search Firecrawl v2 with `includeDomains` from `REGULATORY_OFFICIAL_DOMAINS`, limit five, and `scrapeOptions.formats: ["markdown"]`.
-2. If usable official results exist, return only those as `official-web`.
-3. If none exist, run an unrestricted second search, return results as `secondary-web`, and attach an explicit lower-authority warning.
+1. Search Firecrawl v2 across the open web without domain restrictions, limit five, and `scrapeOptions.formats: ["markdown"]`.
+2. Classify sources based on domain authority: official regulatory domains (.gov, .mil, .europa.eu) as `official-web`, and general web sources as `secondary-web`.
+3. Require the model to proactively guide users on where to locate primary official regulatory documents and registries.
 4. Sanitize and length-bound scraped Markdown before returning it to the model.
 5. Treat scraped instructions as untrusted source text, never as system or tool instructions.
 6. Never write results into Sanity.

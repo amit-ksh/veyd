@@ -11,8 +11,14 @@ import {
 import { getClientIp, checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { errorResponse } from "@/lib/http";
 import { ErrorCodes } from "@/lib/errors";
+import { auth } from "@/lib/auth";
 import { getGeminiModel } from "@/lib/chat/provider";
 import { createChatToolTracker, createChatTools } from "@/lib/chat/tools";
+import {
+  createConversation,
+  appendUserMessage,
+  appendAssistantMessage,
+} from "@/lib/conversations/service";
 
 export const maxDuration = 60; // Allow sufficient time for tool execution and streaming
 
@@ -30,15 +36,20 @@ DETERMINISTIC RETRIEVAL SEQUENCE (MANDATORY):
      Call \`searchExternalRegulations\` to locate the current external standard.
      Clearly distinguish between the internal stale rule and the external findings.
    - If \`classification\` is "empty" (no internal compliance rules found):
-     Call \`searchExternalRegulations\` to search external regulatory standards.
+     Call \`searchExternalRegulations\` to search external regulatory standards across the web.
    - If NEITHER internal rules nor external regulations provide sufficient, verified evidence:
      Explicitly state that the available evidence is insufficient to draw a compliance conclusion.
      DO NOT speculate, extrapolate, or supply uncited compliance requirements or dates.
 
+PRIMARY SOURCE GUIDANCE & REGULATORY NAVIGATION:
+- You are free to search and consult resources anywhere across the open web to answer compliance inquiries.
+- In your responses, proactively guide the user on where to find the official primary source documents, regulatory dockets, statutory registers, and government portals (such as eCFR/CFR Title numbers, Federal Register notices, EUR-Lex, agency guidance repositories, or standard body portals).
+- Provide specific regulatory body names, document references, and direct guidance so compliance officers can easily locate and review the binding official texts.
+
 SOURCE DISTINCTIONS & MANDATORY CITATIONS:
 - Internal Reviewed Rules (Sanity): Highly authoritative, verified internal repository rules.
-- Official Web Regulations: External official regulatory records (e.g. FDA, OSHA, USDA, government portals).
-- Secondary Web Sources: Non-official sources. MUST ALWAYS carry an explicit lower-authority warning indicating that secondary web material requires independent verification.
+- Official Web Regulations (.gov / government bodies / standard authorities): External official regulatory records.
+- Secondary Web Sources: Non-official sources (blogs, summaries, advisory firms). Always carry a clear lower-authority note indicating that secondary web material requires independent verification against official registers.
 - Every substantive compliance requirement, threshold, timeline, or rule stated in your answer must cite the corresponding source.
 
 UNTRUSTED SOURCE CONTENT SAFETY:
@@ -63,7 +74,23 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // 2. Parse request payload
+  // 2. Authenticate session: private user-scoped persistence
+  const session = await auth.api.getSession({
+    headers: req.headers,
+  });
+
+  if (!session?.user?.id) {
+    return errorResponse(
+      ErrorCodes.UNAUTHORIZED,
+      "Authentication required to start or continue a research chat.",
+      401,
+      undefined,
+      rateLimitHeaders(rateLimit)
+    );
+  }
+  const userId = session.user.id;
+
+  // 3. Parse request payload
   let body: unknown;
   try {
     body = await req.json();
@@ -77,9 +104,19 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const rawMessages = (body as { messages?: unknown })?.messages;
+  const bodyObj = (typeof body === "object" && body !== null ? body : {}) as {
+    messages?: unknown;
+    conversationId?: unknown;
+    clientMessageId?: unknown;
+  };
 
-  // 3. Reject empty conversations
+  const rawMessages = bodyObj.messages;
+  const clientConversationId =
+    typeof bodyObj.conversationId === "string" && bodyObj.conversationId.trim()
+      ? bodyObj.conversationId.trim()
+      : undefined;
+
+  // 4. Reject empty conversations
   if (!Array.isArray(rawMessages) || rawMessages.length === 0) {
     return errorResponse(
       ErrorCodes.INVALID_REQUEST,
@@ -90,7 +127,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // 4. Reject unsupported roles
+  // 5. Reject unsupported roles
   for (const msg of rawMessages) {
     if (typeof msg !== "object" || msg === null) {
       return errorResponse(
@@ -113,7 +150,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // 5. Final message must be from user
+  // 6. Final message must be from user
   const lastMessage = rawMessages[rawMessages.length - 1] as { role?: unknown };
   if (lastMessage.role !== "user") {
     return errorResponse(
@@ -125,7 +162,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // 6. Validate UI messages using AI SDK validation helper
+  // 7. Validate UI messages using AI SDK validation helper
   const validation = await safeValidateUIMessages({ messages: rawMessages });
   if (!validation.success) {
     return errorResponse(
@@ -137,7 +174,77 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // 7. Initialize model provider before starting the stream
+  // Extract text of the final user message
+  const lastValidatedMsg = validation.data[validation.data.length - 1];
+  let userText = "";
+  if ("parts" in lastValidatedMsg && Array.isArray((lastValidatedMsg as { parts?: unknown[] }).parts)) {
+    userText = (lastValidatedMsg as { parts?: Array<{ type?: string; text?: string }> }).parts
+      ?.filter((p) => p && p.type === "text" && typeof p.text === "string")
+      .map((p) => p.text)
+      .join("") || "";
+  } else if ("content" in lastValidatedMsg && typeof (lastValidatedMsg as { content?: unknown }).content === "string") {
+    userText = (lastValidatedMsg as { content: string }).content;
+  }
+
+  const clientMessageId =
+    (typeof bodyObj.clientMessageId === "string" && bodyObj.clientMessageId.trim()) ||
+    (typeof (lastValidatedMsg as { id?: unknown }).id === "string" && (lastValidatedMsg as { id: string }).id.trim()) ||
+    undefined;
+
+  // 8. Persist user message in PostgreSQL BEFORE calling paid model services
+  let activeConversationId: string;
+  if (clientConversationId) {
+    try {
+      const appendResult = await appendUserMessage({
+        conversationId: clientConversationId,
+        userId,
+        content: userText,
+        clientMessageId,
+      });
+      activeConversationId = clientConversationId;
+
+      if (appendResult.isDuplicate) {
+        // Duplicate submission detected: return early without re-running AI synthesis
+        const duplicateStream = createUIMessageStream({
+          execute: async ({ writer }) => {
+            writer.write({
+              type: "data-conversation-id",
+              data: { conversationId: activeConversationId },
+            });
+            writer.write({
+              type: "data-duplicate-submission",
+              data: { messageId: appendResult.message.id },
+            });
+          },
+        });
+        return createUIMessageStreamResponse({
+          stream: duplicateStream,
+          headers: rateLimitHeaders(rateLimit),
+        });
+      }
+    } catch {
+      // Non-enumerating 404 for unknown or unauthorized conversation ID
+      return errorResponse(
+        ErrorCodes.NOT_FOUND,
+        "Conversation not found.",
+        404,
+        undefined,
+        rateLimitHeaders(rateLimit)
+      );
+    }
+  } else {
+    // First message: Create new Conversation record linked to session.user.id
+    const newConv = await createConversation(userId);
+    activeConversationId = newConv.id;
+    await appendUserMessage({
+      conversationId: activeConversationId,
+      userId,
+      content: userText,
+      clientMessageId,
+    });
+  }
+
+  // 9. Initialize model provider before starting the stream
   let model;
   try {
     model = getGeminiModel();
@@ -152,7 +259,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // 8. Convert validated UI messages to model messages
+  // 10. Convert validated UI messages to model messages
   let modelMessages;
   try {
     modelMessages = await convertToModelMessages(validation.data);
@@ -166,14 +273,20 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // 9. Prepare tracking and server tools
+  // 11. Prepare tracking and server tools
   const tracker = createChatToolTracker();
   const tools = createChatTools(tracker, req.signal);
 
-  // 10. Create UI message stream with structured citations data part
+  // 12. Create UI message stream with early conversation ID and citations
   const stream = createUIMessageStream({
     execute: async ({ writer }) => {
       try {
+        // Send conversation ID as early stream data part so client updates URL immediately
+        writer.write({
+          type: "data-conversation-id",
+          data: { conversationId: activeConversationId },
+        });
+
         const result = streamText({
           model,
           system: SYSTEM_PROMPT,
@@ -206,12 +319,33 @@ export async function POST(req: NextRequest) {
             data: tracker.citations,
           });
         }
+
+        // Persist assistant message only from the stream completion callback
+        const finalText = await result.text;
+        if (finalText && finalText.trim().length > 0) {
+          try {
+            await appendAssistantMessage({
+              conversationId: activeConversationId,
+              content: finalText,
+              citations: tracker.citations,
+            });
+          } catch (dbErr) {
+            console.error(`[${requestId}] Failed to persist assistant message in DB:`, dbErr);
+            writer.write({
+              type: "data-persistence-warning",
+              data: {
+                warning: "Assistant response could not be saved to your conversation history.",
+              },
+            });
+          }
+        }
       } finally {
         // Operational logging (No prompts or scraped page bodies)
         const durationMs = Date.now() - startTime;
         console.log(
           JSON.stringify({
             requestId,
+            conversationId: activeConversationId,
             durationMs,
             tools: tracker.calledTools,
             sanityRulesCount: tracker.sanityRuleCount,
@@ -234,3 +368,4 @@ export async function POST(req: NextRequest) {
     headers: rateLimitHeaders(rateLimit),
   });
 }
+

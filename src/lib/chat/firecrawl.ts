@@ -130,8 +130,22 @@ async function callFirecrawlApi(
     });
 }
 
+export function isOfficialRegulatoryDomain(domain: string): boolean {
+  const d = domain.toLowerCase();
+  return (
+    d.endsWith(".gov") ||
+    d.includes(".gov.") ||
+    d.endsWith(".mil") ||
+    d.endsWith(".europa.eu") ||
+    d === "who.int" ||
+    d === "iso.org" ||
+    d === "un.org"
+  );
+}
+
 /**
- * Official-first Firecrawl regulatory search with secondary fallback.
+ * Open Firecrawl regulatory web search with source authority classification.
+ * Allows searching anywhere across the web while guiding users to primary sources.
  */
 export async function searchExternalRegulations(
   input: SearchExternalRegulationsInput,
@@ -167,10 +181,6 @@ export async function searchExternalRegulations(
     };
   }
 
-  const officialDomains = config.REGULATORY_OFFICIAL_DOMAINS.split(",")
-    .map((d) => d.trim().toLowerCase())
-    .filter(Boolean);
-
   // Construct search query, optionally incorporating jurisdiction or regulator
   const queryParts = [trimmed];
   if (input.jurisdiction) queryParts.push(`jurisdiction:${input.jurisdiction}`);
@@ -178,41 +188,23 @@ export async function searchExternalRegulations(
   const fullQuery = queryParts.join(" ");
 
   try {
-    // 1. Primary search: Restricted to official domains
-    if (officialDomains.length > 0) {
-      try {
-        const officialResults = await callFirecrawlApi(
-          fullQuery,
-          officialDomains,
-          apiKey,
-          signal
-        );
-
-        if (officialResults.length > 0) {
-          return {
-            sourceKind: "official-web",
-            results: officialResults,
-          };
-        }
-      } catch (officialErr) {
-        // If official search failed or timed out, we record or proceed to secondary attempt
-        console.warn("Official domain search failed or returned no results:", officialErr);
-      }
-    }
-
-    // 2. Secondary fallback: Unrestricted web search with mandatory lower-authority warning
-    const secondaryResults = await callFirecrawlApi(
+    // Unrestricted open web search across the internet
+    const results = await callFirecrawlApi(
       fullQuery,
-      null, // unrestricted
+      null, // unrestricted: search anywhere on the web
       apiKey,
       signal
     );
 
+    const hasOfficialDomain = results.some((r) => isOfficialRegulatoryDomain(r.domain));
+    const sourceKind = hasOfficialDomain ? "official-web" : "secondary-web";
+
     return {
-      sourceKind: "secondary-web",
-      warning:
-        "Lower-authority source: This information is derived from secondary web sources, not internal reviewed rules or official regulatory domain records. Verify independently before relying on it for compliance.",
-      results: secondaryResults,
+      sourceKind,
+      warning: !hasOfficialDomain
+        ? "Secondary web source: Please verify against primary official regulatory registries or agency dockets."
+        : undefined,
+      results,
     };
   } catch (error) {
     const errMessage = error instanceof Error ? error.message : "External search failed";

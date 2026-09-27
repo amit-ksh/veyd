@@ -63,7 +63,6 @@ Copy `.env.example` to `.env.local` for the Next.js app. The Studio may read the
 | `GOOGLE_GENERATIVE_AI_API_KEY` | Server only | Gemini provider credential |
 | `GEMINI_MODEL` | Server only | Stable Gemini model ID selected at deploy time |
 | `FIRECRAWL_API_KEY` | Server only | Firecrawl search credential |
-| `REGULATORY_OFFICIAL_DOMAINS` | Server only | Comma-separated preferred official domains |
 | `BLOB_READ_WRITE_TOKEN` | Server only | Private Vercel Blob client-upload flow |
 | `UPSTASH_REDIS_REST_URL` | Server only | Redis REST endpoint |
 | `UPSTASH_REDIS_REST_TOKEN` | Server only | Redis credential |

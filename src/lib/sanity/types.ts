@@ -113,6 +113,7 @@ export interface SanityMessage {
   _id: string;
   role: MessageRole;
   content: string;
+  clientMessageId?: string | null;
   createdAt: string;
   citations?: SanityCitation[] | null;
 }

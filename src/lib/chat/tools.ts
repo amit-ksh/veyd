@@ -1,7 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { searchComplianceRulesForChat } from "./sanity-search";
-import { searchExternalRegulations } from "./firecrawl";
+import { searchExternalRegulations, isOfficialRegulatoryDomain } from "./firecrawl";
 import type { Citation } from "./types";
 
 if (typeof window !== "undefined") {
@@ -83,11 +83,11 @@ export function createChatTools(tracker: ChatToolTracker, abortSignal?: AbortSig
 
     searchExternalRegulations: tool({
       description:
-        "Search external regulatory standards and laws via Firecrawl. Only call this if searchComplianceRules returned an 'empty' or 'stale' classification, or did not adequately cover the specific regulatory question.",
+        "Search external regulatory standards, guidance, laws, and compliance resources anywhere across the open web via Firecrawl. Only call this if searchComplianceRules returned an 'empty' or 'stale' classification, or did not adequately cover the specific regulatory question.",
       inputSchema: z.object({
         query: z.string().describe("Specific regulatory search query"),
-        jurisdiction: z.string().optional().describe("Target jurisdiction, e.g. US, California"),
-        regulator: z.string().optional().describe("Regulator or agency name, e.g. FDA, OSHA, SEC"),
+        jurisdiction: z.string().optional().describe("Target jurisdiction, e.g. US, California, EU"),
+        regulator: z.string().optional().describe("Regulator or agency name, e.g. FDA, OSHA, SEC, EPA"),
       }),
       execute: async ({ query, jurisdiction, regulator }) => {
         tracker.calledTools.push("searchExternalRegulations");
@@ -106,11 +106,15 @@ export function createChatTools(tracker: ChatToolTracker, abortSignal?: AbortSig
         const out = await searchExternalRegulations({ query, jurisdiction, regulator }, abortSignal);
         tracker.externalResultCount = out.results.length;
 
-        // Record web citations
+        // Record web citations with appropriate sourceKind
         for (const item of out.results) {
+          const itemSourceKind = isOfficialRegulatoryDomain(item.domain)
+            ? ("official-web" as const)
+            : ("secondary-web" as const);
+
           if (!tracker.citations.some((c) => c.url === item.url)) {
             tracker.citations.push({
-              sourceKind: out.sourceKind,
+              sourceKind: itemSourceKind,
               title: item.title,
               url: item.url,
               citation: `${item.title} (${item.domain})`,

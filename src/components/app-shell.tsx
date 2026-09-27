@@ -29,15 +29,23 @@ import type { ComplianceDocumentListItem } from "@/lib/sanity/types";
 import type { Citation } from "@/lib/chat/types";
 
 interface AppShellProps {
+  initialConversationId?: string;
   children?: React.ReactNode;
 }
 
-export function AppShell({ children }: AppShellProps) {
+export function AppShell({ initialConversationId, children }: AppShellProps) {
   const { data: session, isPending } = useSession();
   const [activeTab, setActiveTab] = useState<"chat" | "documents">("chat");
   const [searchQuery, setSearchQuery] = useState("");
   const [documents, setDocuments] = useState<ComplianceDocumentListItem[]>([]);
   const [loadingDocs, setLoadingDocs] = useState(false);
+
+  const [currentConversationId, setCurrentConversationId] = useState<string | null>(
+    initialConversationId || null
+  );
+  const [loadingConversation, setLoadingConversation] = useState(!!initialConversationId);
+  const [conversationNotFound, setConversationNotFound] = useState(false);
+  const [persistenceWarning, setPersistenceWarning] = useState<string | null>(null);
 
   const {
     messages,
@@ -50,6 +58,80 @@ export function AppShell({ children }: AppShellProps) {
   } = useChat();
 
   const isStreaming = status === "streaming" || status === "submitted";
+
+  // Hydrate conversation on load when initialConversationId is provided
+  useEffect(() => {
+    if (!initialConversationId) {
+      setLoadingConversation(false);
+      setConversationNotFound(false);
+      return;
+    }
+
+    setLoadingConversation(true);
+    setConversationNotFound(false);
+
+    fetch(`/api/conversations/${initialConversationId}`)
+      .then(async (res) => {
+        if (res.status === 404) {
+          setConversationNotFound(true);
+          return;
+        }
+        if (!res.ok) {
+          throw new Error(`Failed to load conversation: ${res.statusText}`);
+        }
+        const data = await res.json();
+        setCurrentConversationId(data.conversation.id);
+
+        if (Array.isArray(data.messages)) {
+          const hydrated = data.messages.map((m: {
+            id: string;
+            role: "user" | "assistant";
+            content: string;
+            citations?: Citation[];
+          }) => ({
+            id: m.id,
+            role: m.role,
+            content: m.content,
+            parts: [
+              { type: "text", text: m.content },
+              ...(Array.isArray(m.citations) && m.citations.length > 0
+                ? [{ type: "data-citations", data: m.citations }]
+                : []),
+            ],
+          }));
+          setMessages(hydrated);
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to load conversation:", err);
+        setConversationNotFound(true);
+      })
+      .finally(() => {
+        setLoadingConversation(false);
+      });
+  }, [initialConversationId, setMessages]);
+
+  // Listen to incoming stream data parts to extract conversation ID and update URL seamlessly
+  useEffect(() => {
+    for (const msg of messages) {
+      if (Array.isArray((msg as { parts?: unknown[] }).parts)) {
+        for (const part of (msg as { parts: Array<{ type?: string; data?: { conversationId?: string; warning?: string } }> }).parts) {
+          if (part && part.type === "data-conversation-id" && part.data?.conversationId) {
+            const newId = part.data.conversationId;
+            if (newId && newId !== currentConversationId) {
+              setCurrentConversationId(newId);
+              if (typeof window !== "undefined" && window.location.pathname !== `/chat/${newId}`) {
+                window.history.replaceState(null, "", `/chat/${newId}`);
+              }
+            }
+          }
+          if (part && part.type === "data-persistence-warning" && part.data?.warning) {
+            setPersistenceWarning(part.data.warning);
+          }
+        }
+      }
+    }
+  }, [messages, currentConversationId]);
 
   useEffect(() => {
     if (activeTab === "documents") {
@@ -66,10 +148,36 @@ export function AppShell({ children }: AppShellProps) {
     }
   }, [activeTab]);
 
+  const handleStartNewSession = () => {
+    setMessages([]);
+    setCurrentConversationId(null);
+    setConversationNotFound(false);
+    setPersistenceWarning(null);
+    clearError();
+    if (typeof window !== "undefined") {
+      window.history.pushState(null, "", "/chat");
+    }
+  };
+
   const handleSendPrompt = (textOverride?: string) => {
     const textToSend = (textOverride ?? searchQuery).trim();
     if (!textToSend || isStreaming) return;
-    sendMessage({ text: textToSend });
+    setPersistenceWarning(null);
+
+    const clientMsgId =
+      typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `msg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+
+    sendMessage(
+      { text: textToSend },
+      {
+        body: {
+          conversationId: currentConversationId || undefined,
+          clientMessageId: clientMsgId,
+        },
+      }
+    );
     setSearchQuery("");
   };
 
@@ -138,14 +246,18 @@ export function AppShell({ children }: AppShellProps) {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-6">
             {/* Logo */}
-            <div className="flex items-center gap-2.5">
+            <button
+              type="button"
+              onClick={handleStartNewSession}
+              className="flex items-center gap-2.5 text-left hover:opacity-90 transition-opacity"
+            >
               <div className="w-8 h-8 rounded-lg bg-teal-600 flex items-center justify-center text-white shadow-sm font-bold text-sm tracking-wider">
                 V
               </div>
               <span className="font-bold text-lg tracking-tight text-slate-900">
                 Veyd
               </span>
-            </div>
+            </button>
 
             {/* Navigation Tabs */}
             <nav className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg text-sm">
@@ -205,7 +317,30 @@ export function AppShell({ children }: AppShellProps) {
         ) : activeTab === "chat" ? (
           /* Chat & Research View */
           <div className="max-w-3xl mx-auto space-y-6">
-            {messages.length === 0 ? (
+            {loadingConversation ? (
+              <div className="py-24 flex flex-col items-center justify-center gap-3 text-slate-500">
+                <Loader2 className="w-6 h-6 animate-spin text-teal-600" />
+                <span className="text-sm font-medium">Restoring conversation…</span>
+              </div>
+            ) : conversationNotFound ? (
+              <div className="py-20 flex flex-col items-center justify-center text-center max-w-md mx-auto">
+                <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mb-4">
+                  <AlertCircle className="w-6 h-6 text-slate-500" />
+                </div>
+                <h3 className="text-lg font-bold text-slate-900 mb-1">Conversation Not Found</h3>
+                <p className="text-xs text-slate-500 mb-5 leading-relaxed">
+                  This conversation record does not exist or you do not have permission to view it.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleStartNewSession}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-xs font-semibold transition shadow-sm"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Start New Session</span>
+                </button>
+              </div>
+            ) : messages.length === 0 ? (
               /* Zero State: Greeting, input, suggestions, cards */
               <div className="mt-8 sm:mt-12 space-y-8">
                 <div className="text-center space-y-2">
@@ -313,7 +448,7 @@ export function AppShell({ children }: AppShellProps) {
                   </div>
                   <button
                     type="button"
-                    onClick={() => setMessages([])}
+                    onClick={handleStartNewSession}
                     className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-md transition"
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
@@ -461,6 +596,23 @@ export function AppShell({ children }: AppShellProps) {
                         type="button"
                         onClick={() => clearError()}
                         className="text-[11px] font-semibold text-red-700 hover:underline"
+                      >
+                        Dismiss
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Persistence Warning alert */}
+                  {persistenceWarning && (
+                    <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                        <span>{persistenceWarning}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setPersistenceWarning(null)}
+                        className="text-[11px] font-semibold text-amber-700 hover:underline"
                       >
                         Dismiss
                       </button>

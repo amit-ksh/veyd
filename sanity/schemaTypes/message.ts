@@ -34,6 +34,12 @@ export default defineType({
       validation: (rule) => rule.required().min(1),
     }),
     defineField({
+      name: "clientMessageId",
+      title: "Client Message ID",
+      type: "string",
+      description: "Client-generated message ID for deduplication",
+    }),
+    defineField({
       name: "citations",
       title: "Citations",
       type: "array",
