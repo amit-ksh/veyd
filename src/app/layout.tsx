@@ -7,8 +7,8 @@ import { cn } from "@/lib/utils";
 const figtree = Figtree({subsets:['latin'],variable:'--font-sans'});
 
 export const metadata: Metadata = {
-  title: "Compliance Handbook",
-  description: "Universal cross-industry compliance engine & interactive onboarding handbook",
+  title: "Veyd | Compliance Engine & Research",
+  description: "Veyd — Universal cross-industry compliance engine & interactive onboarding handbook",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

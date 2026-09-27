@@ -1,8 +1,8 @@
 import { AppShell } from "@/components/app-shell";
 
 export const metadata = {
-  title: "Compliance Research",
-  description: "AI-assisted compliance research and regulation handbook",
+  title: "Veyd | Compliance Research",
+  description: "AI-assisted compliance research and regulation handbook powered by Veyd",
 };
 
 export default function HomePage() {

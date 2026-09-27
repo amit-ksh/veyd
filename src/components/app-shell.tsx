@@ -34,10 +34,10 @@ export function AppShell({ children }: AppShellProps) {
             <Shield className="w-6 h-6" />
           </div>
           <h2 className="text-2xl font-bold tracking-tight text-slate-900">
-            Compliance Research Engine
+            Veyd
           </h2>
           <p className="mt-2 text-sm text-slate-600">
-            Sign in or create an account to access the compliance handbook and research chat.
+            Sign in or create an account to access the Veyd compliance handbook and research chat.
           </p>
         </div>
 
@@ -55,15 +55,15 @@ export function AppShell({ children }: AppShellProps) {
       <header className="border-b border-slate-200 bg-white sticky top-0 z-40">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-teal-600 flex items-center justify-center text-white shadow-sm">
-              <Shield className="w-4 h-4" />
+            <div className="w-8 h-8 rounded-lg bg-teal-600 flex items-center justify-center text-white shadow-sm font-bold text-sm tracking-wider">
+              V
             </div>
             <div>
               <span className="font-semibold text-base tracking-tight text-slate-900">
-                Compliance Research
+                Veyd
               </span>
               <span className="ml-2 text-xs font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
-                Sanity Core
+                Compliance Engine
               </span>
             </div>
           </div>
@@ -134,7 +134,7 @@ export function AppShell({ children }: AppShellProps) {
               </div>
               <div className="space-y-3">
                 <h1 className="text-lg font-semibold text-slate-900">
-                  Compliance Application Foundation
+                  Veyd Platform Foundation
                 </h1>
                 <p className="text-sm text-slate-600 leading-relaxed">
                   Authenticated session active for <strong>{session.user.email}</strong>.
@@ -160,7 +160,7 @@ export function AppShell({ children }: AppShellProps) {
 
       {/* Subtle footer */}
       <footer className="border-t border-slate-200 bg-white py-4 text-center text-xs text-slate-400">
-        Compliance Research Engine &bull; Protected by Better-Auth &bull; Read-only Sanity Content Lake
+        Veyd &bull; Protected by Better-Auth &bull; Read-only Sanity Content Lake
       </footer>
     </div>
   );
