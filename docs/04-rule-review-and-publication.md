@@ -88,7 +88,7 @@ Derive draft counts only in server-side operator views with the write token. Pub
 ## Checkpoint record
 
 - Date: 2026-09-27
-- Commit: Pending (Milestone 4 completion)
+- Commit: a93a2c5
 - Reviewer: Antigravity Agent
 - Result: Passed
 - Notes:
