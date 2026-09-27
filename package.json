@@ -17,6 +17,7 @@
     "sanity:deploy": "cd sanity && sanity deploy"
   },
   "dependencies": {
+    "@ai-sdk/google": "^4.0.82",
     "@base-ui/react": "^1.8.0",
     "@hugeicons/core-free-icons": "^4.3.5",
     "@hugeicons/react": "^1.1.10",
