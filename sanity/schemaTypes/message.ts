@@ -61,7 +61,7 @@ export default defineType({
               name: "title",
               title: "Title",
               type: "string",
-              validation: (rule) => rule.required().trim().min(1),
+              validation: (rule) => rule.required().min(1),
             }),
             defineField({
               name: "url",
@@ -69,7 +69,9 @@ export default defineType({
               type: "url",
               validation: (rule) =>
                 rule.custom((url, context) => {
-                  const item = context.parent as { sourceKind?: string } | undefined;
+                  const item = context.parent as
+                    | { sourceKind?: string }
+                    | undefined;
                   if (item?.sourceKind !== "sanity" && !url) {
                     return "URL is required for web citations";
                   }
@@ -83,7 +85,9 @@ export default defineType({
               description: "Required for Sanity rule citations",
               validation: (rule) =>
                 rule.custom((ruleId, context) => {
-                  const item = context.parent as { sourceKind?: string } | undefined;
+                  const item = context.parent as
+                    | { sourceKind?: string }
+                    | undefined;
                   if (item?.sourceKind === "sanity" && !ruleId) {
                     return "Rule ID is required for Sanity citations";
                   }
@@ -112,7 +116,8 @@ export default defineType({
             prepare({ title, sourceKind, citation }) {
               return {
                 title: title || "Untitled Citation",
-                subtitle: `[${sourceKind || "source"}] ${citation || ""}`.trim(),
+                subtitle:
+                  `[${sourceKind || "source"}] ${citation || ""}`.trim(),
               };
             },
           },

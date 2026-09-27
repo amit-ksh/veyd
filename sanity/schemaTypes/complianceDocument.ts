@@ -11,7 +11,7 @@ export default defineType({
       name: "title",
       title: "Document Title",
       type: "string",
-      validation: (rule) => rule.required().trim().min(1).max(200),
+      validation: (rule) => rule.required().min(1).max(200),
     }),
     defineField({
       name: "fileAsset",
@@ -26,8 +26,9 @@ export default defineType({
       name: "industry",
       title: "Industry",
       type: "string",
-      description: "Free-text industry classification (e.g. Healthcare, Food Processing)",
-      validation: (rule) => rule.required().trim().min(1).max(100),
+      description:
+        "Free-text industry classification (e.g. Healthcare, Food Processing)",
+      validation: (rule) => rule.required().min(1).max(100),
     }),
     defineField({
       name: "originalFileName",
@@ -42,7 +43,11 @@ export default defineType({
       type: "string",
       initialValue: "application/pdf",
       validation: (rule) =>
-        rule.required().custom((val) => (val === "application/pdf" ? true : "Must equal application/pdf")),
+        rule
+          .required()
+          .custom((val) =>
+            val === "application/pdf" ? true : "Must equal application/pdf",
+          ),
     }),
     defineField({
       name: "fileSizeBytes",

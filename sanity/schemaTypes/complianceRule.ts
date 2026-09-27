@@ -11,7 +11,7 @@ export default defineType({
       name: "ruleName",
       title: "Rule Name",
       type: "string",
-      validation: (rule) => rule.required().trim().min(1).max(200),
+      validation: (rule) => rule.required().min(1).max(200),
     }),
     defineField({
       name: "description",
@@ -41,14 +41,15 @@ export default defineType({
       title: "Industry",
       type: "string",
       description: "Copied from source document for filtering",
-      validation: (rule) => rule.required().trim().min(1).max(100),
+      validation: (rule) => rule.required().min(1).max(100),
     }),
     defineField({
       name: "jurisdiction",
       title: "Jurisdiction",
       type: "string",
-      description: "Human-readable jurisdiction (e.g. US-Federal, EU, California)",
-      validation: (rule) => rule.required().trim().min(1),
+      description:
+        "Human-readable jurisdiction (e.g. US-Federal, EU, California)",
+      validation: (rule) => rule.required().min(1),
     }),
     defineField({
       name: "regulator",
@@ -61,7 +62,7 @@ export default defineType({
       title: "Citation",
       type: "string",
       description: "Source citation exactly as found (e.g. 21 CFR 117.126)",
-      validation: (rule) => rule.required().trim().min(1),
+      validation: (rule) => rule.required().min(1),
     }),
     defineField({
       name: "evidenceExcerpt",
@@ -81,7 +82,8 @@ export default defineType({
           validation: (rule) => rule.integer().min(1).max(100),
         }),
       ],
-      description: "Unique page numbers in the source PDF (1–100, at least one)",
+      description:
+        "Unique page numbers in the source PDF (1–100, at least one)",
       validation: (rule) =>
         rule
           .required()
@@ -92,7 +94,12 @@ export default defineType({
               return "At least one source page is required";
             }
             for (const p of pages) {
-              if (typeof p !== "number" || !Number.isInteger(p) || p < 1 || p > 100) {
+              if (
+                typeof p !== "number" ||
+                !Number.isInteger(p) ||
+                p < 1 ||
+                p > 100
+              ) {
                 return "Each source page must be an integer between 1 and 100";
               }
             }
@@ -145,11 +152,18 @@ export default defineType({
       name: "expiresAt",
       title: "Expires At",
       type: "date",
-      description: "Explicit expiry or review deadline. Must be on or after effectiveDate.",
+      description:
+        "Explicit expiry or review deadline. Must be on or after effectiveDate.",
       validation: (rule) =>
         rule.custom((expiresAt, context) => {
-          const doc = context.document as { effectiveDate?: string } | undefined;
-          if (expiresAt && doc?.effectiveDate && expiresAt < doc.effectiveDate) {
+          const doc = context.document as
+            | { effectiveDate?: string }
+            | undefined;
+          if (
+            expiresAt &&
+            doc?.effectiveDate &&
+            expiresAt < doc.effectiveDate
+          ) {
             return "Expiration date cannot be earlier than effective date";
           }
           return true;
