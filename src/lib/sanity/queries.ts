@@ -48,18 +48,28 @@ export const publishedRuleCountsByDocumentQuery = defineQuery(`
   }
 `);
 
+import {
+  listPublishedDocuments,
+  getPublishedDocumentById,
+  searchPublishedRules,
+  getPublishedRuleById,
+} from "./published-queries";
+
+export {
+  listPublishedDocuments,
+  getPublishedDocumentById,
+  searchPublishedRules,
+  getPublishedRuleById,
+};
+
 export async function getComplianceDocuments(): Promise<ComplianceDocumentListItem[]> {
-  return publishedClient.fetch<ComplianceDocumentListItem[]>(documentListQuery);
+  return listPublishedDocuments({ limit: 50 });
 }
 
 export async function getComplianceDocumentById(
   documentId: string
 ): Promise<ComplianceDocumentDetail | null> {
-  if (!documentId || documentId.startsWith("drafts.")) return null;
-  return publishedClient.fetch<ComplianceDocumentDetail | null, { documentId: string }>(
-    documentDetailQuery,
-    { documentId }
-  );
+  return getPublishedDocumentById(documentId);
 }
 
 export async function getPublishedRuleCountByDocumentId(
@@ -163,24 +173,13 @@ export async function searchComplianceRules(
   query: string,
   limit: number = 10
 ): Promise<ComplianceRuleSearchResult[]> {
-  const trimmed = query.trim();
-  if (!trimmed) return [];
-
-  const validLimit = Math.max(1, Math.min(20, Math.floor(limit)));
-  return publishedClient.fetch<ComplianceRuleSearchResult[], { searchQuery: string }>(
-    complianceRuleSearchQuery(validLimit),
-    { searchQuery: trimmed }
-  );
+  return searchPublishedRules({ query, limit, includeStale: true });
 }
 
 export async function getComplianceRuleById(
   ruleId: string
 ): Promise<ComplianceRuleDetail | null> {
-  if (!ruleId || ruleId.startsWith("drafts.")) return null;
-  return publishedClient.fetch<ComplianceRuleDetail | null, { ruleId: string }>(
-    ruleDetailQuery,
-    { ruleId }
-  );
+  return getPublishedRuleById(ruleId);
 }
 
 // Backward-compatibility aliases for earlier callers

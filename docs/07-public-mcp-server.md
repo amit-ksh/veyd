@@ -89,12 +89,12 @@ Authentication failures are HTTP failures. Tool validation, not-found, and Sanit
 
 ## Tasks
 
-- [ ] Extract shared published-query services from chat/document routes.
-- [ ] Implement strict bearer authentication.
-- [ ] Register the four tools with exact Zod input schemas.
-- [ ] Add stateless Streamable HTTP request handling.
-- [ ] Add safe MCP error translation and structured logging.
-- [ ] Confirm no write-capable dependency is reachable from the MCP module.
+- [x] Extract shared published-query services from chat/document routes.
+- [x] Implement strict bearer authentication.
+- [x] Register the four tools with exact Zod input schemas.
+- [x] Add stateless Streamable HTTP request handling.
+- [x] Add safe MCP error translation and structured logging.
+- [x] Confirm no write-capable dependency is reachable from the MCP module.
 
 ## Manual checkpoint
 
