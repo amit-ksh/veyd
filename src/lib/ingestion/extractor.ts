@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { generateObject } from "ai";
 import { google } from "@ai-sdk/google";
-import { UpstreamFailureError, AppError } from "../errors.ts";
+import { UpstreamFailureError, AppError } from "../errors";
 
 export const extractedRuleSchema = z.object({
   ruleName: z.string().trim().min(1).max(200),

@@ -1,13 +1,13 @@
 import { del } from "@vercel/blob";
-import { writeClient } from "../sanity/clients.ts";
+import { writeClient } from "../sanity/clients";
 import { createPublishedId, createDraftId } from "@sanity/id-utils";
-import { validatePdfBuffer } from "./validator.ts";
-import { extractRulesFromPdf, type ExtractedRule } from "./extractor.ts";
+import { validatePdfBuffer } from "./validator";
+import { extractRulesFromPdf, type ExtractedRule } from "./extractor";
 import {
   InvalidRequestError,
   UpstreamFailureError,
   AppError,
-} from "../errors.ts";
+} from "../errors";
 
 export interface IngestDocumentParams {
   blobUrl: string;

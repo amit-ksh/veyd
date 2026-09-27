@@ -1,5 +1,5 @@
 import { defineQuery } from "groq";
-import { publishedClient } from "./clients";
+import { publishedClient, writeClient } from "./clients";
 import type {
   ComplianceDocumentListItem,
   ComplianceDocumentDetail,
@@ -7,30 +7,44 @@ import type {
   ComplianceRuleDetail,
   SanityConversation,
   SanityMessage,
+  OperatorDraftRuleCounts,
 } from "./types";
 
 // Re-export types for convenient consumer access
 export * from "./types";
 
 // ============================================================================
-// 1. Compliance Documents
+// 1. Compliance Documents & Publication Counts
 // ============================================================================
 
 export const documentListQuery = defineQuery(`
-  *[_type == "complianceDocument"]
+  *[_type == "complianceDocument" && !(_id in path("drafts.**"))]
   | order(uploadedAt desc) {
     _id, title, industry, originalFileName, fileSizeBytes, pageCount,
     processingStatus, extractedRuleCount, uploadedAt, extractionCompletedAt,
-    failureMessage
+    failureMessage,
+    "publishedRuleCount": count(*[_type == "complianceRule" && !(_id in path("drafts.**")) && sourceDocument._ref == ^._id])
   }
 `);
 
 export const documentDetailQuery = defineQuery(`
-  *[_type == "complianceDocument" && _id == $documentId][0] {
+  *[_type == "complianceDocument" && !(_id in path("drafts.**")) && _id == $documentId][0] {
     _id, title, industry, originalFileName, mimeType, fileSizeBytes, pageCount,
     processingStatus, extractionModel, extractedRuleCount, uploadedAt,
     extractionCompletedAt, failureMessage,
-    "fileUrl": fileAsset.asset->url
+    "fileUrl": fileAsset.asset->url,
+    "publishedRuleCount": count(*[_type == "complianceRule" && !(_id in path("drafts.**")) && sourceDocument._ref == ^._id])
+  }
+`);
+
+export const publishedRuleCountByDocumentQuery = defineQuery(`
+  count(*[_type == "complianceRule" && !(_id in path("drafts.**")) && sourceDocument._ref == $documentId])
+`);
+
+export const publishedRuleCountsByDocumentQuery = defineQuery(`
+  *[_type == "complianceDocument" && !(_id in path("drafts.**"))] {
+    _id,
+    "publishedRuleCount": count(*[_type == "complianceRule" && !(_id in path("drafts.**")) && sourceDocument._ref == ^._id])
   }
 `);
 
@@ -41,11 +55,57 @@ export async function getComplianceDocuments(): Promise<ComplianceDocumentListIt
 export async function getComplianceDocumentById(
   documentId: string
 ): Promise<ComplianceDocumentDetail | null> {
-  if (!documentId) return null;
+  if (!documentId || documentId.startsWith("drafts.")) return null;
   return publishedClient.fetch<ComplianceDocumentDetail | null, { documentId: string }>(
     documentDetailQuery,
     { documentId }
   );
+}
+
+export async function getPublishedRuleCountByDocumentId(
+  documentId: string
+): Promise<number> {
+  if (!documentId) return 0;
+  return publishedClient.fetch<number, { documentId: string }>(
+    publishedRuleCountByDocumentQuery,
+    { documentId }
+  );
+}
+
+export async function getPublishedRuleCountsByDocument(): Promise<Record<string, number>> {
+  const list = await publishedClient.fetch<Array<{ _id: string; publishedRuleCount: number }>>(
+    publishedRuleCountsByDocumentQuery
+  );
+  const map: Record<string, number> = {};
+  for (const item of list) {
+    map[item._id] = item.publishedRuleCount;
+  }
+  return map;
+}
+
+/**
+ * Operator-only server-side draft counts.
+ * Uses writeClient to query draft perspective without leaking the write token to clients.
+ */
+export async function getOperatorDraftRuleCounts(): Promise<OperatorDraftRuleCounts> {
+  const drafts = await writeClient.fetch<Array<{ _id: string; sourceDocId?: string }>>(
+    `*[_type == "complianceRule" && (_id in path("drafts.**") || !defined(lastReviewedAt))] {
+      _id,
+      "sourceDocId": sourceDocument._ref
+    }`
+  );
+
+  const draftsByDocument: Record<string, number> = {};
+  for (const d of drafts) {
+    if (d.sourceDocId) {
+      draftsByDocument[d.sourceDocId] = (draftsByDocument[d.sourceDocId] || 0) + 1;
+    }
+  }
+
+  return {
+    awaitingReviewTotal: drafts.length,
+    draftsByDocument,
+  };
 }
 
 // ============================================================================
@@ -65,6 +125,7 @@ export function complianceRuleSearchQuery(limit: number) {
   return defineQuery(`
     *[
       _type == "complianceRule" &&
+      !(_id in path("drafts.**")) &&
       [ruleName, description, requirement, applicability, citation, keywords[]]
         match text::query($searchQuery)
     ]
@@ -87,7 +148,7 @@ export function complianceRuleSearchQuery(limit: number) {
 }
 
 export const ruleDetailQuery = defineQuery(`
-  *[_type == "complianceRule" && _id == $ruleId][0] {
+  *[_type == "complianceRule" && !(_id in path("drafts.**")) && _id == $ruleId][0] {
     _id, ruleName, description, requirement, applicability,
     industry, jurisdiction, regulator, citation, evidenceExcerpt,
     sourcePages, keywords, freshnessStatus, effectiveDate, expiresAt,
@@ -115,7 +176,7 @@ export async function searchComplianceRules(
 export async function getComplianceRuleById(
   ruleId: string
 ): Promise<ComplianceRuleDetail | null> {
-  if (!ruleId) return null;
+  if (!ruleId || ruleId.startsWith("drafts.")) return null;
   return publishedClient.fetch<ComplianceRuleDetail | null, { ruleId: string }>(
     ruleDetailQuery,
     { ruleId }

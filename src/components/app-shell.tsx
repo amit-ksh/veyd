@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   MessageSquare,
   FileText,
@@ -13,9 +13,15 @@ import {
   User as UserIcon,
   Loader2,
   Sparkles,
+  ExternalLink,
+  CheckCircle2,
+  AlertCircle,
+  Clock,
 } from "lucide-react";
 import { useSession, signOut } from "@/lib/auth-client";
 import { AuthForm } from "@/components/AuthForm";
+import { formatDocumentRuleStatus } from "@/lib/documents";
+import type { ComplianceDocumentListItem } from "@/lib/sanity/types";
 
 interface AppShellProps {
   children?: React.ReactNode;
@@ -25,6 +31,23 @@ export function AppShell({ children }: AppShellProps) {
   const { data: session, isPending } = useSession();
   const [activeTab, setActiveTab] = useState<"chat" | "documents">("chat");
   const [searchQuery, setSearchQuery] = useState("");
+  const [documents, setDocuments] = useState<ComplianceDocumentListItem[]>([]);
+  const [loadingDocs, setLoadingDocs] = useState(false);
+
+  useEffect(() => {
+    if (activeTab === "documents") {
+      setLoadingDocs(true);
+      fetch("/api/documents")
+        .then((res) => res.json())
+        .then((data) => {
+          if (Array.isArray(data.documents)) {
+            setDocuments(data.documents);
+          }
+        })
+        .catch((err) => console.error("Failed to load documents:", err))
+        .finally(() => setLoadingDocs(false));
+    }
+  }, [activeTab]);
 
   // Loading state
   if (isPending) {
@@ -267,14 +290,95 @@ export function AppShell({ children }: AppShellProps) {
               </p>
             </div>
 
-            {/* Document List Placeholder */}
-            <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-400">
-              <FileText className="w-8 h-8 mx-auto mb-2 opacity-40" />
-              <p className="text-sm font-medium text-slate-600">No documents uploaded yet</p>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Uploaded documents and extracted compliance rules will appear here.
-              </p>
-            </div>
+            {/* Document List */}
+            {loadingDocs ? (
+              <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-400">
+                <Loader2 className="w-6 h-6 animate-spin text-teal-600 mx-auto mb-2" />
+                <p className="text-sm font-medium text-slate-600">Loading compliance documents...</p>
+              </div>
+            ) : documents.length === 0 ? (
+              <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-400">
+                <FileText className="w-8 h-8 mx-auto mb-2 opacity-40" />
+                <p className="text-sm font-medium text-slate-600">No documents uploaded yet</p>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Uploaded documents and extracted compliance rules will appear here.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {documents.map((doc) => {
+                  const status = formatDocumentRuleStatus(doc);
+                  const isReady = doc.processingStatus === "ready";
+                  const isFailed = doc.processingStatus === "failed";
+
+                  return (
+                    <div
+                      key={doc._id}
+                      className="bg-white rounded-xl border border-slate-200 p-5 shadow-2xs hover:border-slate-300 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                    >
+                      <div className="space-y-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="font-semibold text-sm text-slate-900 truncate">
+                            {doc.title}
+                          </h4>
+                          <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[11px] font-medium border border-slate-200/60">
+                            {doc.industry}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-400 flex items-center gap-2">
+                          <span>{doc.originalFileName}</span>
+                          <span>&bull;</span>
+                          <span>{doc.pageCount} pages</span>
+                          <span>&bull;</span>
+                          <span>
+                            Uploaded {new Date(doc.uploadedAt).toLocaleDateString()}
+                          </span>
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-3 self-end sm:self-center shrink-0">
+                        {/* Distinct Rule Status Badge */}
+                        <div
+                          className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border ${
+                            status.variant === "published"
+                              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                              : status.variant === "drafts"
+                              ? "bg-amber-50 text-amber-700 border-amber-200"
+                              : status.variant === "failed"
+                              ? "bg-rose-50 text-rose-700 border-rose-200"
+                              : "bg-slate-50 text-slate-600 border-slate-200"
+                          }`}
+                          title={status.subtext}
+                        >
+                          {status.variant === "published" ? (
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                          ) : status.variant === "drafts" ? (
+                            <Clock className="w-3.5 h-3.5" />
+                          ) : status.variant === "failed" ? (
+                            <AlertCircle className="w-3.5 h-3.5" />
+                          ) : (
+                            <FileText className="w-3.5 h-3.5" />
+                          )}
+                          <span>{status.label}</span>
+                        </div>
+
+                        {/* Review in Sanity Studio link */}
+                        <a
+                          href="http://localhost:3333"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-md transition-colors"
+                          title="Open in Sanity Studio to review drafts"
+                        >
+                          <span>Review</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
       </main>

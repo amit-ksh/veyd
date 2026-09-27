@@ -17,6 +17,7 @@ export interface ComplianceDocumentListItem {
   pageCount: number;
   processingStatus: ProcessingStatus;
   extractedRuleCount: number;
+  publishedRuleCount?: number;
   uploadedAt: string;
   extractionCompletedAt?: string | null;
   failureMessage?: string | null;
@@ -33,10 +34,16 @@ export interface ComplianceDocumentDetail {
   processingStatus: ProcessingStatus;
   extractionModel?: string | null;
   extractedRuleCount: number;
+  publishedRuleCount?: number;
   uploadedAt: string;
   extractionCompletedAt?: string | null;
   failureMessage?: string | null;
   fileUrl?: string | null;
+}
+
+export interface OperatorDraftRuleCounts {
+  awaitingReviewTotal: number;
+  draftsByDocument: Record<string, number>;
 }
 
 export interface ComplianceRuleSourceDocument {

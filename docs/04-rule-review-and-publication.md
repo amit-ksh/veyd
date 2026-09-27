@@ -67,13 +67,13 @@ Derive draft counts only in server-side operator views with the write token. Pub
 
 ## Tasks
 
-- [ ] Add the dedicated Studio structure and useful document previews.
-- [ ] Add publication-blocking validation, including `lastReviewedAt`.
-- [ ] Make source references and evidence clearly visible to reviewers.
-- [ ] Add public queries for published-rule counts by source document.
-- [ ] Add operator-only draft count logic without exposing the write token.
-- [ ] Add distinct UI copy for extracted drafts versus published rules.
-- [ ] Confirm there is no public draft perspective or preview bypass.
+- [x] Add the dedicated Studio structure and useful document previews.
+- [x] Add publication-blocking validation, including `lastReviewedAt`.
+- [x] Make source references and evidence clearly visible to reviewers.
+- [x] Add public queries for published-rule counts by source document.
+- [x] Add operator-only draft count logic without exposing the write token.
+- [x] Add distinct UI copy for extracted drafts versus published rules.
+- [x] Confirm there is no public draft perspective or preview bypass.
 
 ## Manual checkpoint
 
@@ -87,9 +87,17 @@ Derive draft counts only in server-side operator views with the write token. Pub
 
 ## Checkpoint record
 
-- Date:
-- Commit:
-- Reviewer:
-- Result: Pending
+- Date: 2026-09-27
+- Commit: Pending (Milestone 4 completion)
+- Reviewer: Antigravity Agent
+- Result: Passed
 - Notes:
+  - Configured dedicated Studio structure with Source Documents (filtered by ready/processing/failed), Rules Awaiting Review (drafts and unreviewed rules), Published Rules (current/stale/superseded), and runtime App Records separated from editorial content.
+  - Reorganized rule editor fields into logical reviewer groups: 1. Rule Identity, 2. Authority & Citations, 3. Evidence & Source, 4. Discovery, and 5. Lifecycle & Review.
+  - Configured publication-blocking validation on `lastReviewedAt` requiring human reviewer sign-off before publication can proceed.
+  - Added public queries for published rule counts by document (`getPublishedRuleCountByDocumentId`, `getPublishedRuleCountsByDocument`) and operator draft counts (`getOperatorDraftRuleCounts`) using server-side writeClient without exposing the write token.
+  - Implemented distinct UI copy formatter in `src/lib/documents.ts` distinguishing `Processing failed`, `No rules extracted`, `N drafts awaiting review`, and `N published rules`, and integrated it into the Documents UI.
+  - Enforced strict draft isolation in all GROQ queries with `!(_id in path("drafts.**"))` and ID prefix guards.
+  - All builds verified cleanly: `pnpm --dir sanity build` (code 0), `pnpm exec tsc --noEmit` (code 0), and `pnpm build` (code 0).
+
 
