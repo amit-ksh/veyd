@@ -24,7 +24,7 @@ export async function GET() {
   return successResponse({
     status: "ok",
     timestamp: new Date().toISOString(),
-    service: "compliance-handbook",
+    service: "veyd",
     milestone: "1-foundation",
     config: {
       projectId: process.env.NEXT_PUBLIC_SANITY_PROJECT_ID ? "configured" : "missing",
