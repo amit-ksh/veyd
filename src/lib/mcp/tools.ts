@@ -1,61 +1,71 @@
 import { z } from "zod";
-import { searchRules, getRuleBySlug, getIndustries, getChaptersByIndustry } from "@/lib/sanity/queries";
+import {
+  searchComplianceRules,
+  getComplianceRuleById,
+  getComplianceDocuments,
+  getComplianceDocumentById,
+} from "@/lib/sanity/queries";
 
 // Exposes published Sanity compliance knowledge over MCP at /api/mcp.
-// Purely read-only Sanity retrieval.
-
-export const listIndustriesTool = {
-  name: "list_industries",
-  description:
-    "List every industry the compliance handbook covers, with a slug you can pass to other tools.",
-  inputSchema: z.object({}),
-  handler: async () => {
-    const industries = await getIndustries();
-    return { industries };
-  },
-};
-
-export const getHandbookTool = {
-  name: "get_handbook_for_industry",
-  description:
-    "Get the ordered onboarding handbook chapters for a given industry slug, including the compliance rules each chapter covers.",
-  inputSchema: z.object({
-    industrySlug: z.string().describe("Slug of the industry, from list_industries"),
-  }),
-  handler: async ({ industrySlug }: { industrySlug: string }) => {
-    const chapters = await getChaptersByIndustry(industrySlug);
-    return { chapters };
-  },
-};
+// Purely read-only Sanity retrieval using the published perspective client.
 
 export const searchRulesTool = {
   name: "search_compliance_rules",
   description:
-    "Search compliance rules by keyword (e.g. 'allergen labeling', 'data retention'). Returns rules with their checklist and citation.",
+    "Search published compliance rules by keyword. Returns rules with their requirement, applicability, evidence, and citation.",
   inputSchema: z.object({
     query: z.string().describe("Free-text search term"),
+    limit: z.number().int().min(1).max(20).optional().default(10).describe("Maximum rules to return (1-20)"),
   }),
-  handler: async ({ query }: { query: string }) => {
-    const rules = await searchRules(query);
+  handler: async ({ query, limit }: { query: string; limit?: number }) => {
+    const rules = await searchComplianceRules(query, limit ?? 10);
     return { rules };
   },
 };
 
 export const getRuleTool = {
   name: "get_compliance_rule",
-  description: "Get a specific compliance rule by its slug.",
+  description: "Get a specific published compliance rule by its Sanity document ID.",
   inputSchema: z.object({
-    ruleSlug: z.string().describe("Slug of the compliance rule"),
+    ruleId: z.string().describe("Sanity document ID of the compliance rule"),
   }),
-  handler: async ({ ruleSlug }: { ruleSlug: string }) => {
-    const rule = await getRuleBySlug(ruleSlug);
+  handler: async ({ ruleId }: { ruleId: string }) => {
+    const rule = await getComplianceRuleById(ruleId);
+    if (!rule) {
+      return { error: `Rule not found for ID: ${ruleId}` };
+    }
     return { rule };
   },
 };
 
+export const listDocumentsTool = {
+  name: "list_compliance_documents",
+  description: "List ingested compliance documents and regulatory guidelines.",
+  inputSchema: z.object({}),
+  handler: async () => {
+    const documents = await getComplianceDocuments();
+    return { documents };
+  },
+};
+
+export const getDocumentTool = {
+  name: "get_compliance_document",
+  description: "Get detail and file asset URL for a specific compliance document by ID.",
+  inputSchema: z.object({
+    documentId: z.string().describe("Sanity document ID of the compliance document"),
+  }),
+  handler: async ({ documentId }: { documentId: string }) => {
+    const document = await getComplianceDocumentById(documentId);
+    if (!document) {
+      return { error: `Document not found for ID: ${documentId}` };
+    }
+    return { document };
+  },
+};
+
 export const mcpTools = [
-  listIndustriesTool,
-  getHandbookTool,
   searchRulesTool,
   getRuleTool,
+  listDocumentsTool,
+  getDocumentTool,
 ];
