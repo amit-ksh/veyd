@@ -116,13 +116,13 @@ Stream citations as structured data parts and render them after the answer in fi
 
 ## Tasks
 
-- [ ] Add the server-only Gemini provider and model factory.
-- [ ] Implement and share the Sanity search service.
-- [ ] Implement official-first Firecrawl v2 search and sanitization.
-- [ ] Implement the deterministic retrieval policy and bounded tool loop.
-- [ ] Add structured citation data parts and source badges.
-- [ ] Add timeout, abort, logging, and stream-safe error behavior.
-- [ ] Connect a temporary chat screen; persistence is the next milestone.
+- [x] Add the server-only Gemini provider and model factory.
+- [x] Implement and share the Sanity search service.
+- [x] Implement official-first Firecrawl v2 search and sanitization.
+- [x] Implement the deterministic retrieval policy and bounded tool loop.
+- [x] Add structured citation data parts and source badges.
+- [x] Add timeout, abort, logging, and stream-safe error behavior.
+- [x] Connect a temporary chat screen; persistence is the next milestone.
 
 ## Manual checkpoint
 
@@ -137,9 +137,9 @@ Stream citations as structured data parts and render them after the answer in fi
 
 ## Checkpoint record
 
-- Date:
-- Commit:
-- Reviewer:
-- Result: Pending
-- Notes:
+- Date: 2026-09-27
+- Commit: Pending (Master)
+- Reviewer: Antigravity Assistant & User
+- Result: Passed
+- Notes: Published rule search tested with draft isolation and freshness classification; deterministic policy tested to suppress Firecrawl when current internal rules match; prompt-injection sanitization verified; 30-turn IP rate limit verified on POST /api/chat with 429 and Retry-After headers; pnpm exec tsc --noEmit, pnpm build, and pnpm --dir sanity build all exited 0.
 

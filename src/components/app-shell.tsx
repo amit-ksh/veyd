@@ -16,12 +16,17 @@ import {
   ExternalLink,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
   Clock,
+  RotateCcw,
+  StopCircle,
 } from "lucide-react";
+import { useChat } from "@ai-sdk/react";
 import { useSession, signOut } from "@/lib/auth-client";
 import { AuthForm } from "@/components/AuthForm";
 import { formatDocumentRuleStatus } from "@/lib/documents";
 import type { ComplianceDocumentListItem } from "@/lib/sanity/types";
+import type { Citation } from "@/lib/chat/types";
 
 interface AppShellProps {
   children?: React.ReactNode;
@@ -33,6 +38,18 @@ export function AppShell({ children }: AppShellProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [documents, setDocuments] = useState<ComplianceDocumentListItem[]>([]);
   const [loadingDocs, setLoadingDocs] = useState(false);
+
+  const {
+    messages,
+    sendMessage,
+    status,
+    error: chatError,
+    stop,
+    setMessages,
+    clearError,
+  } = useChat();
+
+  const isStreaming = status === "streaming" || status === "submitted";
 
   useEffect(() => {
     if (activeTab === "documents") {
@@ -48,6 +65,32 @@ export function AppShell({ children }: AppShellProps) {
         .finally(() => setLoadingDocs(false));
     }
   }, [activeTab]);
+
+  const handleSendPrompt = (textOverride?: string) => {
+    const textToSend = (textOverride ?? searchQuery).trim();
+    if (!textToSend || isStreaming) return;
+    sendMessage({ text: textToSend });
+    setSearchQuery("");
+  };
+
+  const extractMessageText = (parts?: Array<any>): string => {
+    if (!parts) return "";
+    return parts
+      .filter((p) => p && p.type === "text" && typeof p.text === "string")
+      .map((p) => p.text)
+      .join("");
+  };
+
+  const extractMessageCitations = (parts?: Array<any>): Citation[] => {
+    if (!parts) return [];
+    const citations: Citation[] = [];
+    for (const part of parts) {
+      if (part && part.type === "data-citations" && Array.isArray(part.data)) {
+        citations.push(...part.data);
+      }
+    }
+    return citations;
+  };
 
   // Loading state
   if (isPending) {
@@ -161,102 +204,299 @@ export function AppShell({ children }: AppShellProps) {
           children
         ) : activeTab === "chat" ? (
           /* Chat & Research View */
-          <div className="max-w-3xl mx-auto mt-8 sm:mt-12 space-y-8">
-            {/* Minimal Greeting */}
-            <div className="text-center space-y-2">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-50 border border-teal-200/60 text-teal-700 text-xs font-medium mb-1">
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>Regulatory Intelligence</span>
-              </div>
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">
-                What would you like to research?
-              </h1>
-              <p className="text-sm text-slate-500 max-w-md mx-auto">
-                Ask questions across compliance standards, industry regulations, and policy documents.
-              </p>
-            </div>
-
-            {/* Intuitive Search / Prompt Input */}
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-2 focus-within:ring-2 focus-within:ring-teal-500/20 focus-within:border-teal-500 transition-all">
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  // Will bind to chat stream
-                }}
-                className="flex items-center gap-2"
-              >
-                <div className="pl-3 text-slate-400">
-                  <Search className="w-5 h-5" />
+          <div className="max-w-3xl mx-auto space-y-6">
+            {messages.length === 0 ? (
+              /* Zero State: Greeting, input, suggestions, cards */
+              <div className="mt-8 sm:mt-12 space-y-8">
+                <div className="text-center space-y-2">
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-50 border border-teal-200/60 text-teal-700 text-xs font-medium mb-1">
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Regulatory Intelligence</span>
+                  </div>
+                  <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">
+                    What would you like to research?
+                  </h1>
+                  <p className="text-sm text-slate-500 max-w-md mx-auto">
+                    Ask questions across compliance standards, industry regulations, and policy documents.
+                  </p>
                 </div>
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Ask a compliance question or search regulations..."
-                  className="flex-1 py-2.5 text-sm bg-transparent outline-none placeholder:text-slate-400 text-slate-900"
-                />
-                <button
-                  type="submit"
-                  disabled={!searchQuery.trim()}
-                  className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-teal-600 text-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-teal-700 transition-colors shadow-sm"
-                >
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-              </form>
-            </div>
 
-            {/* Quick Starter Chips */}
-            <div className="flex flex-wrap items-center justify-center gap-2 text-xs">
-              <span className="text-slate-400">Suggestions:</span>
-              {[
-                "FDA allergen labeling rules",
-                "HIPAA data retention periods",
-                "AML / KYC audit requirements",
-                "OSHA workplace safety standards",
-              ].map((suggestion) => (
-                <button
-                  key={suggestion}
-                  type="button"
-                  onClick={() => setSearchQuery(suggestion)}
-                  className="px-3 py-1.5 rounded-full bg-white border border-slate-200 text-slate-600 hover:text-slate-900 hover:border-slate-300 transition-colors shadow-2xs"
-                >
-                  {suggestion}
-                </button>
-              ))}
-            </div>
-
-            {/* Clean Feature Overview */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-6">
-              <div className="p-5 rounded-xl bg-white border border-slate-200/80 shadow-2xs space-y-2">
-                <div className="w-9 h-9 rounded-lg bg-teal-50 border border-teal-100 flex items-center justify-center text-teal-700">
-                  <MessageSquare className="w-4 h-4" />
+                {/* Primary Search / Prompt Input */}
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-2 focus-within:ring-2 focus-within:ring-teal-500/20 focus-within:border-teal-500 transition-all">
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      handleSendPrompt();
+                    }}
+                    className="flex items-center gap-2"
+                  >
+                    <div className="pl-3 text-slate-400">
+                      <Search className="w-5 h-5" />
+                    </div>
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Ask a compliance question or search regulations..."
+                      className="flex-1 py-2.5 text-sm bg-transparent outline-none placeholder:text-slate-400 text-slate-900"
+                    />
+                    <button
+                      type="submit"
+                      disabled={!searchQuery.trim() || isStreaming}
+                      className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-teal-600 text-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-teal-700 transition-colors shadow-sm"
+                    >
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  </form>
                 </div>
-                <h3 className="font-semibold text-sm text-slate-900">Cited Research</h3>
-                <p className="text-xs text-slate-500 leading-relaxed">
-                  Answers backed by published regulations and direct official citations.
-                </p>
-              </div>
 
-              <div className="p-5 rounded-xl bg-white border border-slate-200/80 shadow-2xs space-y-2">
-                <div className="w-9 h-9 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-700">
-                  <BookOpen className="w-4 h-4" />
+                {/* Quick Starter Chips */}
+                <div className="flex flex-wrap items-center justify-center gap-2 text-xs">
+                  <span className="text-slate-400">Suggestions:</span>
+                  {[
+                    "FDA allergen labeling rules",
+                    "HIPAA data retention periods",
+                    "AML / KYC audit requirements",
+                    "OSHA workplace safety standards",
+                  ].map((suggestion) => (
+                    <button
+                      key={suggestion}
+                      type="button"
+                      onClick={() => handleSendPrompt(suggestion)}
+                      className="px-3 py-1.5 rounded-full bg-white border border-slate-200 text-slate-600 hover:text-slate-900 hover:border-slate-300 transition-colors shadow-2xs"
+                    >
+                      {suggestion}
+                    </button>
+                  ))}
                 </div>
-                <h3 className="font-semibold text-sm text-slate-900">Industry Handbooks</h3>
-                <p className="text-xs text-slate-500 leading-relaxed">
-                  Structured onboarding handbooks organized by industry chapters.
-                </p>
-              </div>
 
-              <div className="p-5 rounded-xl bg-white border border-slate-200/80 shadow-2xs space-y-2">
-                <div className="w-9 h-9 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-700">
-                  <ShieldCheck className="w-4 h-4" />
+                {/* Feature Highlights */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-6">
+                  <div className="p-5 rounded-xl bg-white border border-slate-200/80 shadow-2xs space-y-2">
+                    <div className="w-9 h-9 rounded-lg bg-teal-50 border border-teal-100 flex items-center justify-center text-teal-700">
+                      <MessageSquare className="w-4 h-4" />
+                    </div>
+                    <h3 className="font-semibold text-sm text-slate-900">Cited Research</h3>
+                    <p className="text-xs text-slate-500 leading-relaxed">
+                      Answers backed by published regulations and direct official citations.
+                    </p>
+                  </div>
+
+                  <div className="p-5 rounded-xl bg-white border border-slate-200/80 shadow-2xs space-y-2">
+                    <div className="w-9 h-9 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-700">
+                      <BookOpen className="w-4 h-4" />
+                    </div>
+                    <h3 className="font-semibold text-sm text-slate-900">Industry Handbooks</h3>
+                    <p className="text-xs text-slate-500 leading-relaxed">
+                      Structured onboarding handbooks organized by industry chapters.
+                    </p>
+                  </div>
+
+                  <div className="p-5 rounded-xl bg-white border border-slate-200/80 shadow-2xs space-y-2">
+                    <div className="w-9 h-9 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-700">
+                      <ShieldCheck className="w-4 h-4" />
+                    </div>
+                    <h3 className="font-semibold text-sm text-slate-900">Rule Checklists</h3>
+                    <p className="text-xs text-slate-500 leading-relaxed">
+                      Actionable compliance verification checklists to audit operations.
+                    </p>
+                  </div>
                 </div>
-                <h3 className="font-semibold text-sm text-slate-900">Rule Checklists</h3>
-                <p className="text-xs text-slate-500 leading-relaxed">
-                  Actionable compliance verification checklists to audit operations.
-                </p>
               </div>
-            </div>
+            ) : (
+              /* Active Conversation View */
+              <div className="space-y-6">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2.5 h-2.5 rounded-full bg-teal-500" />
+                    <span className="font-semibold text-sm text-slate-900">Compliance Research Session</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setMessages([])}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-md transition"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>New Session</span>
+                  </button>
+                </div>
+
+                {/* Messages Thread */}
+                <div className="space-y-4">
+                  {messages.map((msg, idx) => {
+                    const text = extractMessageText(msg.parts);
+                    const citations = extractMessageCitations(msg.parts);
+                    const hasSecondary = citations.some((c) => c.sourceKind === "secondary-web");
+
+                    if (msg.role === "user") {
+                      return (
+                        <div key={msg.id || idx} className="flex justify-end">
+                          <div className="max-w-[85%] rounded-2xl bg-teal-600 text-white px-4 py-3 text-sm shadow-sm leading-relaxed">
+                            {text}
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    // Assistant response
+                    return (
+                      <div key={msg.id || idx} className="flex gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold text-xs shrink-0 mt-0.5 shadow-sm">
+                          V
+                        </div>
+                        <div className="flex-1 space-y-3 bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs">
+                          {/* Response Text */}
+                          <div className="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap">
+                            {text}
+                          </div>
+
+                          {/* Citations Box */}
+                          {citations.length > 0 && (
+                            <div className="mt-4 pt-4 border-t border-slate-100 space-y-2.5">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                  Verified Sources & Citations
+                                </span>
+                                <span className="text-[11px] text-slate-400">
+                                  {citations.length} reference{citations.length > 1 ? "s" : ""}
+                                </span>
+                              </div>
+
+                              {/* Secondary Web Warning Callout */}
+                              {hasSecondary && (
+                                <div className="p-3 rounded-lg bg-amber-50/80 border border-amber-200/80 text-amber-900 text-xs flex items-start gap-2">
+                                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                                  <div className="space-y-0.5">
+                                    <span className="font-semibold text-amber-800">
+                                      Lower-Authority Source Warning
+                                    </span>
+                                    <p className="text-amber-700 text-[11px] leading-relaxed">
+                                      This answer references secondary web materials not yet formally verified in your internal rule repository. Verify independently before relying on it for audit compliance.
+                                    </p>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Citation Cards */}
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                                {citations.map((c, cIdx) => (
+                                  <div
+                                    key={cIdx}
+                                    className="p-2.5 rounded-lg border border-slate-200/90 bg-slate-50/50 flex flex-col justify-between gap-1.5 text-xs hover:border-slate-300 transition"
+                                  >
+                                    <div className="flex items-center justify-between gap-1">
+                                      {c.sourceKind === "sanity" ? (
+                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200/70">
+                                          <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                                          <span>Verified Rule</span>
+                                        </span>
+                                      ) : c.sourceKind === "official-web" ? (
+                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-700 border border-blue-200/70">
+                                          <ExternalLink className="w-3 h-3 text-blue-600" />
+                                          <span>Official Regulation</span>
+                                        </span>
+                                      ) : (
+                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-800 border border-amber-200/70">
+                                          <AlertTriangle className="w-3 h-3 text-amber-600" />
+                                          <span>Secondary Web</span>
+                                        </span>
+                                      )}
+
+                                      {c.url && (
+                                        <a
+                                          href={c.url}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="text-slate-400 hover:text-teal-600 transition"
+                                          title="Open reference link"
+                                        >
+                                          <ExternalLink className="w-3.5 h-3.5" />
+                                        </a>
+                                      )}
+                                    </div>
+
+                                    <div className="font-medium text-slate-900 line-clamp-1" title={c.title}>
+                                      {c.title}
+                                    </div>
+
+                                    {c.citation && (
+                                      <div className="text-[11px] text-slate-500 font-mono line-clamp-1">
+                                        {c.citation}
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {/* Streaming indicator */}
+                  {isStreaming && (
+                    <div className="flex items-center gap-2.5 text-xs text-slate-500 pl-11 py-2">
+                      <Loader2 className="w-4 h-4 animate-spin text-teal-600" />
+                      <span>Consulting compliance repository & streaming response…</span>
+                      <button
+                        type="button"
+                        onClick={() => stop()}
+                        className="inline-flex items-center gap-1 text-[11px] text-red-600 hover:text-red-700 font-medium ml-2"
+                      >
+                        <StopCircle className="w-3.5 h-3.5" />
+                        <span>Stop</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Chat Error alert */}
+                  {chatError && (
+                    <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                        <span>{chatError.message || "Failed to complete research request."}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => clearError()}
+                        className="text-[11px] font-semibold text-red-700 hover:underline"
+                      >
+                        Dismiss
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Follow-up input form */}
+                <div className="sticky bottom-4 pt-2">
+                  <div className="bg-white rounded-2xl border border-slate-200 shadow-md p-2 focus-within:ring-2 focus-within:ring-teal-500/20 focus-within:border-teal-500 transition-all">
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        handleSendPrompt();
+                      }}
+                      className="flex items-center gap-2"
+                    >
+                      <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Ask a follow-up or research another regulation..."
+                        className="flex-1 py-2 pl-3 text-sm bg-transparent outline-none placeholder:text-slate-400 text-slate-900"
+                      />
+                      <button
+                        type="submit"
+                        disabled={!searchQuery.trim() || isStreaming}
+                        className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-teal-600 text-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-teal-700 transition-colors shadow-sm"
+                      >
+                        <ArrowRight className="w-4 h-4" />
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           /* Documents & Ingestion View */
