@@ -108,9 +108,16 @@ Authentication failures are HTTP failures. Tool validation, not-found, and Sanit
 
 ## Checkpoint record
 
-- Date:
-- Commit:
-- Reviewer:
-- Result: Pending
+- Date: 2026-09-27
+- Commit: 927525a
+- Reviewer: Automated agent verification & manual checklist
+- Result: Passed
 - Notes:
+  - Verified timing-safe bearer authentication: returns 401 with `WWW-Authenticate: Bearer realm="Compliance MCP"` for missing or invalid tokens before transport initialization.
+  - Connected MCP client via `StreamableHTTPClientTransport` at `http://localhost:3000/api/mcp` and verified all 4 tools: `search_compliance_rules`, `get_compliance_rule`, `list_compliance_documents`, `get_compliance_document`.
+  - Tested search, rule retrieval, and document listing/retrieval against published Sanity dataset.
+  - Verified draft isolation: accessing draft documents or draft rules explicitly returns `isError: true` with code `NOT_FOUND`.
+  - Stale rules are excluded by default in `search_compliance_rules` unless `includeStale: true` is passed.
+  - Audited source imports: 0 write client, upload, Gemini extraction, Firecrawl, or conversation persistence dependencies reachable from `src/app/api/mcp` or `src/lib/mcp`.
+  - Passed `pnpm exec tsc --noEmit` and `pnpm build` with zero errors.
 
