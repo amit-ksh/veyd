@@ -44,3 +44,5 @@ export function handleRouteError(error: unknown): NextResponse<ApiErrorBody> {
   console.error("Unhandled API error:", error);
   return errorResponse(ErrorCodes.INTERNAL_ERROR, "An internal error occurred", 500);
 }
+
+export const handleApiError = handleRouteError;
