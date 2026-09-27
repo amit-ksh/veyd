@@ -89,9 +89,17 @@ Return `404` for an unknown ID. Never return a list of other IDs or include Stud
 
 ## Checkpoint record
 
-- Date:
-- Commit:
-- Reviewer:
-- Result: Pending
+- Date: 2026-09-27
+- Commit: f483377
+- Reviewer: Antigravity Agent
+- Result: Passed
 - Notes:
+  - Removed REGULATORY_OFFICIAL_DOMAINS restriction; allowed open web research with official vs secondary source classification and explicit primary document guidance.
+  - Implemented User -> Conversation -> Message schema in PostgreSQL via Prisma with clientMessageId.
+  - Synchronized Sanity Message schema with clientMessageId for deduplication.
+  - User message persisted before upstream AI calls; assistant message persisted only upon stream completion.
+  - Early stream emission of data-conversation-id allows client to update URL to /chat/[conversationId] seamlessly without stream interruption.
+  - Exact-ID read endpoint (GET /api/conversations/[conversationId]) returns 401 for unauthenticated and 404 for unknown/cross-user requests (non-enumerating).
+  - Confirmed no list or delete endpoints exist in API or UI.
+  - Verified with automated tests (verify-m6.mjs), Next.js production build, Studio build, and TypeScript type-check.
 
