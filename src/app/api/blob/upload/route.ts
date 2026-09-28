@@ -3,18 +3,30 @@ import { NextResponse, type NextRequest } from "next/server";
 import { checkRateLimit, getClientIp, rateLimitHeaders } from "@/lib/rate-limit";
 import { errorResponse } from "@/lib/http";
 import { ErrorCodes } from "@/lib/errors";
+import { logger, getOrCreateCorrelationId } from "@/lib/logger";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
+  const correlationId = getOrCreateCorrelationId(req);
+
   // 1. Enforce ingestion rate limit (5 per rolling hour per IP)
   const ip = getClientIp(req);
   const rateLimit = await checkRateLimit("ingestion", ip);
   if (!rateLimit.success) {
+    logger.warn("ingestion_rate_limited", {
+      correlationId,
+      route: "/api/blob/upload",
+      clientIp: ip === "127.0.0.1" ? "localhost" : "remote",
+    });
     return errorResponse(
       ErrorCodes.RATE_LIMITED,
       "Ingestion rate limit exceeded. You can upload up to 5 documents per hour.",
       429,
       { retryAfter: rateLimit.retryAfter },
-      rateLimitHeaders(rateLimit)
+      rateLimitHeaders(rateLimit),
+      correlationId
     );
   }
 
@@ -48,16 +60,31 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       },
     });
 
+    const headers = new Headers(rateLimitHeaders(rateLimit));
+    headers.set("X-Correlation-Id", correlationId);
+
+    logger.info("blob_upload_token_issued", {
+      correlationId,
+      route: "/api/blob/upload",
+    });
+
     return NextResponse.json(jsonResponse, {
       status: 200,
-      headers: rateLimitHeaders(rateLimit),
+      headers,
     });
   } catch (error) {
-    console.error("Blob upload token error:", (error as Error).message);
+    logger.error("blob_upload_token_failed", {
+      correlationId,
+      route: "/api/blob/upload",
+      error: (error as Error).message,
+    });
     return errorResponse(
       ErrorCodes.INVALID_REQUEST,
       (error as Error).message || "Failed to generate upload token",
-      400
+      400,
+      undefined,
+      undefined,
+      correlationId
     );
   }
 }

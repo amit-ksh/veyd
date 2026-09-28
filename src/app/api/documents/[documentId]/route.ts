@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getComplianceDocumentById } from "@/lib/sanity/queries";
-import { handleApiError, successResponse, errorResponse } from "@/lib/http";
+import { handleRouteError, successResponse, errorResponse } from "@/lib/http";
+import { getOrCreateCorrelationId } from "@/lib/logger";
 import { ErrorCodes } from "@/lib/errors";
 
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 interface RouteParams {
@@ -12,13 +14,14 @@ interface RouteParams {
 }
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: RouteParams
 ): Promise<NextResponse> {
+  const correlationId = getOrCreateCorrelationId(req);
   const { documentId } = params;
 
   if (!documentId) {
-    return errorResponse(ErrorCodes.INVALID_REQUEST, "documentId is required", 400);
+    return errorResponse(ErrorCodes.INVALID_REQUEST, "documentId is required", 400, undefined, correlationId);
   }
 
   try {
@@ -27,12 +30,18 @@ export async function GET(
       return errorResponse(
         ErrorCodes.NOT_FOUND,
         `Compliance document not found for ID: ${documentId}`,
-        404
+        404,
+        undefined,
+        correlationId
       );
     }
 
-    return successResponse({ document });
+    return successResponse({ document }, 200, correlationId);
   } catch (error) {
-    return handleApiError(error);
+    return handleRouteError(error, {
+      route: "GET /api/documents/[documentId]",
+      correlationId,
+      metadata: { documentId },
+    });
   }
 }

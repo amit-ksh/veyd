@@ -4,8 +4,11 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { mcpTools } from "@/lib/mcp/tools";
 import { getServerConfig } from "@/lib/config";
+import { logger, getOrCreateCorrelationId } from "@/lib/logger";
 
+export const runtime = "nodejs";
 export const maxDuration = 30;
+export const dynamic = "force-dynamic";
 
 /**
  * Timing-safe bearer token verification.
@@ -137,14 +140,15 @@ function buildServer(requestId: string) {
  * Handles incoming MCP requests with strict bearer gate and stateless Streamable HTTP transport.
  */
 async function handleMcpRequest(req: NextRequest) {
-  const requestId = `mcp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const correlationId = getOrCreateCorrelationId(req);
+  const requestId = correlationId;
 
   // 1. Verify server configuration
   let config;
   try {
     config = getServerConfig();
   } catch (err) {
-    console.error(`[${requestId}] Missing server configuration:`, err);
+    logger.error("mcp_config_missing", { correlationId, error: (err as Error).message });
     return new NextResponse(
       JSON.stringify({ error: "Server configuration error" }),
       {
@@ -152,6 +156,7 @@ async function handleMcpRequest(req: NextRequest) {
         headers: {
           "Content-Type": "application/json",
           "Cache-Control": "no-store",
+          "X-Correlation-Id": correlationId,
         },
       }
     );
@@ -159,13 +164,10 @@ async function handleMcpRequest(req: NextRequest) {
 
   // 2. Strict Bearer Authentication before transport processing or tool execution
   if (!isBearerAuthorized(req, config.MCP_TOOL_SECRET)) {
-    console.log(
-      JSON.stringify({
-        requestId,
-        authOutcome: "failed",
-        path: req.nextUrl.pathname,
-      })
-    );
+    logger.warn("mcp_auth_failed", {
+      correlationId,
+      path: req.nextUrl.pathname,
+    });
 
     return new NextResponse(
       JSON.stringify({ error: "Unauthorized: Invalid or missing bearer credentials." }),
@@ -175,6 +177,7 @@ async function handleMcpRequest(req: NextRequest) {
           "Content-Type": "application/json",
           "WWW-Authenticate": 'Bearer realm="Compliance MCP"',
           "Cache-Control": "no-store",
+          "X-Correlation-Id": correlationId,
         },
       }
     );
@@ -187,9 +190,10 @@ async function handleMcpRequest(req: NextRequest) {
   });
   await server.connect(transport);
 
-  // 4. Dispatch request to transport and enforce Cache-Control: no-store
+  // 4. Dispatch request to transport and enforce Cache-Control: no-store and correlation ID
   const response = await transport.handleRequest(req);
   response.headers.set("Cache-Control", "no-store");
+  response.headers.set("X-Correlation-Id", correlationId);
   return response;
 }
 

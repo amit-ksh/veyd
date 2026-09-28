@@ -8,6 +8,7 @@ import {
   UpstreamFailureError,
   AppError,
 } from "../errors";
+import { logger } from "../logger";
 
 export interface IngestDocumentParams {
   blobUrl: string;
@@ -86,7 +87,8 @@ async function fetchBlobBuffer(blobUrl: string): Promise<Buffer> {
  * 7. In finally block, delete temporary Blob
  */
 export async function ingestDocument(
-  params: IngestDocumentParams
+  params: IngestDocumentParams,
+  correlationId?: string
 ): Promise<IngestDocumentResult> {
   const { blobUrl, title, industry } = params;
   const token = process.env.BLOB_READ_WRITE_TOKEN;
@@ -246,8 +248,12 @@ export async function ingestDocument(
       try {
         await del(blobUrl, { token });
       } catch (delErr) {
-        // Blob deletion failure should not crash the request
-        console.warn("Failed to delete temporary blob:", (delErr as Error).message);
+        // Blob deletion failure should not crash the request; log locator for operator manual cleanup
+        logger.warn("temporary_blob_delete_failed", {
+          correlationId,
+          blobUrl,
+          error: (delErr as Error).message,
+        });
       }
     }
   }

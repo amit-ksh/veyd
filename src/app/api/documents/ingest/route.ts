@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { ingestDocument } from "@/lib/ingestion/service";
-import { handleApiError, errorResponse } from "@/lib/http";
+import { handleApiError, errorResponse, successResponse } from "@/lib/http";
 import { ErrorCodes } from "@/lib/errors";
+import { logger, getOrCreateCorrelationId } from "@/lib/logger";
+
+export const runtime = "nodejs";
+export const maxDuration = 300; // 300s maximum duration for Vercel synchronous ingestion
+export const dynamic = "force-dynamic";
 
 const ingestRequestSchema = z.object({
   blobUrl: z.string().url("A valid blobUrl is required"),
@@ -19,6 +24,14 @@ const ingestRequestSchema = z.object({
 });
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
+  const correlationId = getOrCreateCorrelationId(req);
+  const startTime = Date.now();
+
+  logger.info("ingest_request_start", {
+    correlationId,
+    route: "/api/documents/ingest",
+  });
+
   let body: unknown;
   try {
     body = await req.json();
@@ -26,22 +39,52 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return errorResponse(
       ErrorCodes.INVALID_REQUEST,
       "Invalid JSON request body",
-      400
+      400,
+      undefined,
+      undefined,
+      correlationId
     );
   }
 
   const parsed = ingestRequestSchema.safeParse(body);
   if (!parsed.success) {
     const message = parsed.error.issues.map((i) => i.message).join(", ");
-    return errorResponse(ErrorCodes.INVALID_REQUEST, message, 400, {
-      issues: parsed.error.issues,
+    logger.warn("ingest_validation_failed", {
+      correlationId,
+      route: "/api/documents/ingest",
+      issues: parsed.error.issues.map((i) => i.message),
     });
+    return errorResponse(
+      ErrorCodes.INVALID_REQUEST,
+      message,
+      400,
+      { issues: parsed.error.issues },
+      undefined,
+      correlationId
+    );
   }
 
   try {
-    const result = await ingestDocument(parsed.data);
-    return NextResponse.json(result, { status: 201 });
+    const result = await ingestDocument(parsed.data, correlationId);
+    const durationMs = Date.now() - startTime;
+
+    logger.info("ingest_request_success", {
+      correlationId,
+      route: "/api/documents/ingest",
+      documentId: result.document.id,
+      extractedRuleCount: result.document.extractedRuleCount,
+      pageCount: result.document.pageCount,
+      durationMs,
+    });
+
+    return successResponse(result, 201, undefined, correlationId);
   } catch (error) {
-    return handleApiError(error);
+    const durationMs = Date.now() - startTime;
+    logger.error("ingest_request_failed", {
+      correlationId,
+      route: "/api/documents/ingest",
+      durationMs,
+    });
+    return handleApiError(error, correlationId, "/api/documents/ingest");
   }
 }
