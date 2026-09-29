@@ -1,5 +1,7 @@
 # Milestone 10 — Manual Acceptance Checklist
 
+> This checklist records the accepted single-context baseline. Milestones 11 and 12 add project isolation and document removal after that approval; their own pending checkpoints must pass before the extended product is release-ready.
+
 ## Purpose
 
 Use this checklist after all feature milestones pass. It verifies core application behavior without adding unit-test or integration-test code. Build, type, schema, and hands-on checks are required.
@@ -124,5 +126,4 @@ None recorded.
   - Full automated manual acceptance test suite (`scratch/verify-m10.mjs`) passed 100%.
   - Production bundle compilation and Sanity Studio compilation succeed from clean state.
   - Strict isolation, redaction, security gates, and runtime limits verified.
-
 

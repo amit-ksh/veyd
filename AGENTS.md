@@ -21,6 +21,8 @@ Before implementing a feature, read:
 | Dashboard and responsive UI | [`$compliance-dashboard-ui`](.agents/skills/compliance-dashboard-ui/SKILL.md) | [`docs/08-dashboard-ui.md`](docs/08-dashboard-ui.md) |
 | Vercel/Sanity deployment and operations | [`$compliance-deployment`](.agents/skills/compliance-deployment/SKILL.md) | [`docs/09-deployment-and-operations.md`](docs/09-deployment-and-operations.md) |
 | Final manual release checks | [`$compliance-manual-acceptance`](.agents/skills/compliance-manual-acceptance/SKILL.md) | [`docs/10-manual-acceptance-checklist.md`](docs/10-manual-acceptance-checklist.md) |
+| User-owned projects, sidebar project list/add, project-scoped MCP | [`$compliance-project-context`](.agents/skills/compliance-project-context/SKILL.md) | [`docs/11-project-context-and-mcp-scope.md`](docs/11-project-context-and-mcp-scope.md) |
+| Remove a document and its active context while preserving citation origins | [`$compliance-document-removal`](.agents/skills/compliance-document-removal/SKILL.md) | [`docs/12-document-context-removal.md`](docs/12-document-context-removal.md) |
 
 ## Using these skills with any model
 
@@ -35,4 +37,3 @@ Preserve these repository-wide rules:
 - Implement core application code only. Do not add unit-test or integration-test suites unless the user changes that scope.
 - Preserve unrelated user changes and do not rewrite secrets in `.env`.
 - Use `.env.example` for variable names and placeholders; never commit credentials.
-
