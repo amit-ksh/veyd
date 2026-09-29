@@ -131,3 +131,25 @@ model Message {
   @@index([conversationId, clientMessageId])
 }
 
+// --- Document Deletion & Removal Tombstones ---
+
+model RemovedComplianceSource {
+  id                String   @id @default(cuid())
+  projectId         String
+  documentId        String
+  documentTitle     String
+  removedByUserId   String
+  removedAt         DateTime @default(now())
+  deletionStatus    String   // pending | deleting | complete | failed
+  sanityTransaction String?
+  sourceAssetId     String?
+  deletionPlan      Json?    // validated explicit Sanity IDs and progress cursor
+  removedRuleCount  Int?
+  assetStatus       String?  // deleted | retained-shared | not-found
+  lastErrorCode     String?
+
+  @@unique([projectId, documentId])
+  @@index([projectId, deletionStatus])
+}
+
+

@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import type { Citation } from "@/lib/chat/types";
+import type { Citation, PresentedCitation } from "@/lib/chat/types";
 
 if (typeof window !== "undefined") {
   throw new Error("Cannot import server conversation service in client-side code");
@@ -17,7 +17,7 @@ export type ConversationResponse = {
     clientMessageId?: string;
     role: "user" | "assistant";
     content: string;
-    citations: Citation[];
+    citations: PresentedCitation[];
     createdAt: string;
   }>;
 };
@@ -42,6 +42,7 @@ export async function createConversation(userId: string, projectId: string, titl
 /**
  * Retrieves a conversation and its chronologically ordered messages.
  * Scoped strictly to the authenticated user and optional projectId (returns null if non-existent or owned by another user/project).
+ * Annotates citations with tombstone removal status.
  */
 export async function getConversation(
   conversationId: string,
@@ -67,6 +68,21 @@ export async function getConversation(
     return null;
   }
 
+  // Fetch tombstones in this project to annotate removed citations
+  const tombstones = await prisma.removedComplianceSource.findMany({
+    where: {
+      projectId: conv.projectId,
+      deletionStatus: { in: ["pending", "deleting", "complete", "failed"] },
+    },
+    select: {
+      documentId: true,
+      documentTitle: true,
+      removedAt: true,
+    },
+  });
+
+  const removedDocsMap = new Map(tombstones.map((t) => [t.documentId, t]));
+
   return {
     conversation: {
       id: conv.id,
@@ -74,14 +90,34 @@ export async function getConversation(
       createdAt: conv.createdAt.toISOString(),
       updatedAt: conv.updatedAt.toISOString(),
     },
-    messages: conv.messages.map((m) => ({
-      id: m.id,
-      clientMessageId: m.clientMessageId ?? undefined,
-      role: m.role as "user" | "assistant",
-      content: m.content,
-      citations: Array.isArray(m.citations) ? (m.citations as unknown as Citation[]) : [],
-      createdAt: m.createdAt.toISOString(),
-    })),
+    messages: conv.messages.map((m) => {
+      const rawCitations = Array.isArray(m.citations) ? (m.citations as unknown as Citation[]) : [];
+      const presentedCitations: PresentedCitation[] = rawCitations.map((c) => {
+        const tombstone = c.documentId ? removedDocsMap.get(c.documentId) : undefined;
+        if (tombstone) {
+          return {
+            ...c,
+            url: undefined, // Internal link disabled
+            documentTitle: c.documentTitle || tombstone.documentTitle,
+            availability: "removed" as const,
+            removedAt: tombstone.removedAt.toISOString(),
+          };
+        }
+        return {
+          ...c,
+          availability: "active" as const,
+        };
+      });
+
+      return {
+        id: m.id,
+        clientMessageId: m.clientMessageId ?? undefined,
+        role: m.role as "user" | "assistant",
+        content: m.content,
+        citations: presentedCitations,
+        createdAt: m.createdAt.toISOString(),
+      };
+    }),
   };
 }
 

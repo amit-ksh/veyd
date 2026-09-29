@@ -1,6 +1,7 @@
 import { defineQuery } from "groq";
 import { publishedClient } from "./clients";
 import { isRuleStale } from "./types";
+import { getTombstonedDocumentIds, isDocumentTombstoned } from "@/lib/tombstones/service";
 import type {
   ComplianceDocumentListItem,
   ComplianceDocumentDetail,
@@ -63,12 +64,17 @@ export async function listPublishedDocuments(params: {
   const limit = Math.max(1, Math.min(50, params.limit ?? 20));
   const offset = Math.max(0, Math.min(500, params.offset ?? 0));
 
-  const query = buildDocumentListQuery(offset, limit);
-  return publishedClient.fetch<ComplianceDocumentListItem[]>(query, {
-    projectId,
-    industry: params.industry?.trim() || null,
-    status: params.status || null,
-  });
+  const [tombstonedIds, docs] = await Promise.all([
+    getTombstonedDocumentIds(projectId),
+    publishedClient.fetch<ComplianceDocumentListItem[]>(buildDocumentListQuery(offset, limit), {
+      projectId,
+      industry: params.industry?.trim() || null,
+      status: params.status || null,
+    }),
+  ]);
+
+  if (tombstonedIds.length === 0) return docs;
+  return docs.filter((d) => !tombstonedIds.includes(d._id));
 }
 
 export async function getPublishedDocumentById(
@@ -76,6 +82,10 @@ export async function getPublishedDocumentById(
   projectId: string
 ): Promise<ComplianceDocumentDetail | null> {
   if (!documentId || documentId.startsWith("drafts.") || !projectId) return null;
+
+  const isTombstoned = await isDocumentTombstoned(projectId, documentId);
+  if (isTombstoned) return null;
+
   return publishedClient.fetch<ComplianceDocumentDetail | null, { documentId: string; projectId: string }>(
     publishedDocumentDetailQuery,
     { documentId, projectId }
@@ -161,11 +171,18 @@ export async function searchPublishedRules(params: {
 
   if (!results || results.length === 0) return [];
 
-  // Filter out any rule where dereferenced sourceDocument belongs to another project
+  const tombstonedIds = await getTombstonedDocumentIds(projectId);
+
+  // Filter out any rule where dereferenced sourceDocument belongs to another project or is tombstoned
   const projectVerified = results.filter((r) => {
-    if (r.sourceDocument && r.sourceDocument.projectId && r.sourceDocument.projectId !== projectId) {
-      console.warn(`[SECURITY] Rule ${r._id} source document project mismatch: rule=${projectId}, doc=${r.sourceDocument.projectId}`);
-      return false;
+    if (r.sourceDocument) {
+      if (r.sourceDocument.projectId && r.sourceDocument.projectId !== projectId) {
+        console.warn(`[SECURITY] Rule ${r._id} source document project mismatch: rule=${projectId}, doc=${r.sourceDocument.projectId}`);
+        return false;
+      }
+      if (tombstonedIds.includes(r.sourceDocument._id)) {
+        return false;
+      }
     }
     return true;
   });
@@ -191,9 +208,13 @@ export async function getPublishedRuleById(
   if (!rule) return null;
 
   // Invariant verification: dereferenced source document must belong to same project
-  if (rule.sourceDocument && rule.sourceDocument.projectId && rule.sourceDocument.projectId !== projectId) {
-    console.warn(`[SECURITY] Rule ${rule._id} source document project mismatch: rule=${projectId}, doc=${rule.sourceDocument.projectId}`);
-    return null;
+  if (rule.sourceDocument) {
+    if (rule.sourceDocument.projectId && rule.sourceDocument.projectId !== projectId) {
+      console.warn(`[SECURITY] Rule ${rule._id} source document project mismatch: rule=${projectId}, doc=${rule.sourceDocument.projectId}`);
+      return null;
+    }
+    const isTombstoned = await isDocumentTombstoned(projectId, rule.sourceDocument._id);
+    if (isTombstoned) return null;
   }
 
   return rule;

@@ -8,6 +8,7 @@ export const ErrorCodes = {
   UPSTREAM_FAILURE: "UPSTREAM_FAILURE",
   INTERNAL_ERROR: "INTERNAL_ERROR",
   UNAUTHORIZED: "UNAUTHORIZED",
+  CONFLICT: "CONFLICT",
 } as const;
 
 export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes] | string;
@@ -77,3 +78,10 @@ export class UpstreamFailureError extends AppError {
     super(message, ErrorCodes.UPSTREAM_FAILURE, 502, details);
   }
 }
+
+export class ConflictError extends AppError {
+  constructor(message = "Conflict", details?: unknown) {
+    super(message, ErrorCodes.CONFLICT, 409, details);
+  }
+}
+

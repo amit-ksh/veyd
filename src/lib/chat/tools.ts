@@ -61,7 +61,10 @@ export function createChatTools(
               title: rule.ruleName,
               ruleId: rule.ruleId,
               documentId: rule.documentId,
+              documentTitle: rule.documentTitle,
               citation: rule.citation,
+              sourcePages: rule.sourcePages,
+              projectId: projectId,
               url: rule.fileUrl,
             });
           }

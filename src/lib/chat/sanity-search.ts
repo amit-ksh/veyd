@@ -1,5 +1,6 @@
 import { defineQuery } from "groq";
 import { publishedClient } from "../sanity/clients";
+import { getTombstonedDocumentIds } from "@/lib/tombstones/service";
 import type {
   SearchComplianceRulesInput,
   SearchComplianceRulesOutput,
@@ -106,11 +107,18 @@ export async function searchComplianceRulesForChat(
       };
     }
 
-    // Filter out any rule where dereferenced sourceDocument belongs to another project
+    const tombstonedIds = await getTombstonedDocumentIds(projectId);
+
+    // Filter out any rule where dereferenced sourceDocument belongs to another project or is tombstoned
     const verifiedResults = rawResults.filter((r) => {
-      if (r.sourceDocument && r.sourceDocument.projectId && r.sourceDocument.projectId !== projectId) {
-        console.warn(`[SECURITY] Chat search rule ${r._id} source document project mismatch: rule=${projectId}, doc=${r.sourceDocument.projectId}`);
-        return false;
+      if (r.sourceDocument) {
+        if (r.sourceDocument.projectId && r.sourceDocument.projectId !== projectId) {
+          console.warn(`[SECURITY] Chat search rule ${r._id} source document project mismatch: rule=${projectId}, doc=${r.sourceDocument.projectId}`);
+          return false;
+        }
+        if (tombstonedIds.includes(r.sourceDocument._id)) {
+          return false;
+        }
       }
       return true;
     });

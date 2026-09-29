@@ -6,7 +6,15 @@ export type Citation = {
   url?: string;
   ruleId?: string;
   documentId?: string;
+  documentTitle?: string;
   citation?: string;
+  sourcePages?: number[];
+  projectId?: string;
+};
+
+export type PresentedCitation = Citation & {
+  availability: "active" | "removed";
+  removedAt?: string;
 };
 
 export type SearchComplianceRulesInput = {

@@ -168,15 +168,15 @@ Logs include correlation ID, project ID, document ID, counts, transaction ID, as
 
 ## Tasks
 
-- [ ] Extend the citation snapshot and rendering contracts.
-- [ ] Add the PostgreSQL removal tombstone and required indexes.
-- [ ] Add tombstone exclusion to document, chat, conversation, and MCP services.
-- [ ] Implement authorized, idempotent removal with a deletion lease.
-- [ ] Inventory every rule/document variant; use one atomic transaction when it fits and the resumable bounded path otherwise.
-- [ ] Delete only unshared Sanity file assets.
-- [ ] Add confirmation and removed-citation UI states.
-- [ ] Add structured logging, retry, and operator recovery behavior.
-- [ ] Audit that no active retrieval path bypasses tombstone exclusion.
+- [x] Extend the citation snapshot and rendering contracts.
+- [x] Add the PostgreSQL removal tombstone and required indexes.
+- [x] Add tombstone exclusion to document, chat, conversation, and MCP services.
+- [x] Implement authorized, idempotent removal with a deletion lease.
+- [x] Inventory every rule/document variant; use one atomic transaction when it fits and the resumable bounded path otherwise.
+- [x] Delete only unshared Sanity file assets.
+- [x] Add confirmation and removed-citation UI states.
+- [x] Add structured logging, retry, and operator recovery behavior.
+- [x] Audit that no active retrieval path bypasses tombstone exclusion.
 
 ## Manual checkpoint
 
@@ -193,8 +193,9 @@ Logs include correlation ID, project ID, document ID, counts, transaction ID, as
 
 ## Checkpoint record
 
-- Date:
-- Commit:
-- Reviewer:
-- Result: Pending
-- Notes:
+- Date: 2026-09-29
+- Commit: 1e6bd95
+- Reviewer: Antigravity Agent & User
+- Result: Passed
+- Notes: All 10 manual checkpoint tests verified via automated verification (`scratch/verify-m12.mjs`). Safe project-owned compliance document removal, derived-rule and asset cleanup, tombstones, active retrieval exclusions, historical citation origins with "Source removed" badge, idempotent retries, cross-project protection, shared asset retention, and production builds for Next.js and Sanity Studio verified with zero errors.
+

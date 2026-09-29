@@ -31,15 +31,17 @@ import {
   ChevronDown,
   Check,
   Plus,
+  Trash2,
 } from "lucide-react";
 import { useChat } from "@ai-sdk/react";
 import { useSession, signOut } from "@/lib/auth-client";
 import { AuthForm } from "@/components/AuthForm";
 import { AddProjectModal } from "@/components/add-project-modal";
 import { ProjectMcpModal } from "@/components/project-mcp-modal";
+import { RemoveDocumentModal } from "@/components/remove-document-modal";
 import { upload } from "@vercel/blob/client";
 import type { ComplianceDocumentListItem } from "@/lib/sanity/types";
-import type { Citation } from "@/lib/chat/types";
+import type { Citation, PresentedCitation } from "@/lib/chat/types";
 
 interface ProjectItem {
   id: string;
@@ -88,6 +90,8 @@ export function AppShell({
   const [documents, setDocuments] = useState<ComplianceDocumentListItem[]>([]);
   const [loadingDocs, setLoadingDocs] = useState(false);
   const [docsError, setDocsError] = useState<string | null>(null);
+  const [documentToRemove, setDocumentToRemove] = useState<ComplianceDocumentListItem | null>(null);
+  const [removalSuccessMessage, setRemovalSuccessMessage] = useState<string | null>(null);
 
   // Projects state
   const [projects, setProjects] = useState<ProjectItem[]>([]);
@@ -364,9 +368,9 @@ export function AppShell({
       .join("");
   };
 
-  const extractMessageCitations = (parts?: Array<any>): Citation[] => {
+  const extractMessageCitations = (parts?: Array<any>): PresentedCitation[] => {
     if (!parts) return [];
-    const citations: Citation[] = [];
+    const citations: PresentedCitation[] = [];
     for (const part of parts) {
       if (part && part.type === "data-citations" && Array.isArray(part.data)) {
         citations.push(...part.data);
@@ -1099,34 +1103,60 @@ export function AppShell({
                                   <span>Verified Citations ({citations.length})</span>
                                 </div>
                                 <div className="space-y-1.5">
-                                  {citations.map((c, cIdx) => (
-                                    <div
-                                      key={cIdx}
-                                      className="flex items-start justify-between gap-2 p-1.5 rounded bg-white border border-slate-100 text-[11px]"
-                                    >
-                                      <div className="min-w-0">
-                                        <div className="font-semibold text-slate-800 truncate">
-                                          {c.title}
-                                        </div>
-                                        {c.citation && (
-                                          <div className="text-slate-500 font-mono text-[10px]">
-                                            {c.citation}
+                                  {citations.map((c, cIdx) => {
+                                    const isRemoved = c.availability === "removed";
+                                    const displayTitle = c.documentTitle || c.title;
+                                    const sourcePages = c.sourcePages;
+
+                                    return (
+                                      <div
+                                        key={cIdx}
+                                        className={`flex items-start justify-between gap-2 p-2 rounded-lg border text-[11px] transition-colors ${
+                                          isRemoved
+                                            ? "bg-slate-50/80 border-slate-200/60"
+                                            : "bg-white border-slate-100 shadow-2xs"
+                                        }`}
+                                      >
+                                        <div className="min-w-0 space-y-0.5">
+                                          <div className="flex items-center gap-1.5 flex-wrap">
+                                            <span
+                                              className={`font-semibold truncate ${
+                                                isRemoved ? "text-slate-600" : "text-slate-800"
+                                              }`}
+                                            >
+                                              {displayTitle}
+                                            </span>
+                                            {isRemoved && (
+                                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                                                Source removed
+                                              </span>
+                                            )}
                                           </div>
-                                        )}
+                                          {c.citation && (
+                                            <div className="text-slate-500 font-mono text-[10px] truncate">
+                                              {c.citation}
+                                            </div>
+                                          )}
+                                          {sourcePages && sourcePages.length > 0 && (
+                                            <div className="text-[10px] text-slate-400">
+                                              Page{sourcePages.length === 1 ? "" : "s"}: {sourcePages.join(", ")}
+                                            </div>
+                                          )}
+                                        </div>
+                                        {!isRemoved && c.url ? (
+                                          <a
+                                            href={c.url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-[#008f96] hover:underline flex items-center gap-1 shrink-0 font-medium"
+                                          >
+                                            <span>Source</span>
+                                            <ExternalLink className="w-3 h-3" />
+                                          </a>
+                                        ) : null}
                                       </div>
-                                      {c.url && (
-                                        <a
-                                          href={c.url}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="text-[#008f96] hover:underline flex items-center gap-1 shrink-0 font-medium"
-                                        >
-                                          <span>Source</span>
-                                          <ExternalLink className="w-3 h-3" />
-                                        </a>
-                                      )}
-                                    </div>
-                                  ))}
+                                    );
+                                  })}
                                 </div>
                               </div>
                             )}
@@ -1442,6 +1472,25 @@ export function AppShell({
                   </div>
                 )}
 
+                {removalSuccessMessage && (
+                  <div
+                    className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center justify-between"
+                    role="status"
+                  >
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>{removalSuccessMessage}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setRemovalSuccessMessage(null)}
+                      className="text-[11px] font-semibold underline text-emerald-700"
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                )}
+
                 {loadingDocs ? (
                   <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-400" aria-live="polite">
                     <Loader2 className="w-6 h-6 animate-spin text-[#00c9d2] mx-auto mb-2" />
@@ -1562,6 +1611,18 @@ export function AppShell({
                               <span>Review in Studio</span>
                               <ExternalLink className="w-3 h-3 text-[#00c9d2]" />
                             </a>
+
+                            {/* Remove from Project action */}
+                            <button
+                              type="button"
+                              onClick={() => setDocumentToRemove(doc)}
+                              aria-label={`Remove ${doc.title} from project`}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-md transition focus-visible:ring-2 focus-visible:ring-rose-500"
+                              title={`Remove ${doc.title} and derived rules from active project context`}
+                            >
+                              <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                              <span>Remove</span>
+                            </button>
                           </div>
                         </div>
                       );
@@ -1595,6 +1656,20 @@ export function AppShell({
         onClose={() => setShowMcpModal(false)}
         projectId={currentProjectId}
         projectName={activeProject?.name || "Project"}
+      />
+
+      {/* Remove Document Confirmation Modal */}
+      <RemoveDocumentModal
+        isOpen={!!documentToRemove}
+        onClose={() => setDocumentToRemove(null)}
+        documentItem={documentToRemove}
+        projectId={currentProjectId}
+        onDocumentRemoved={(docId, docTitle) => {
+          setDocuments((prev) => prev.filter((d) => d._id !== docId));
+          setRemovalSuccessMessage(
+            `Document "${docTitle}" and its rules were successfully removed from this project.`
+          );
+        }}
       />
     </div>
   );
