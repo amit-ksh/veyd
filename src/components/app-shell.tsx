@@ -39,6 +39,7 @@ import { AuthForm } from "@/components/AuthForm";
 import { AddProjectModal } from "@/components/add-project-modal";
 import { ProjectMcpModal } from "@/components/project-mcp-modal";
 import { RemoveDocumentModal } from "@/components/remove-document-modal";
+import { HandbookView } from "@/components/handbook-view";
 import { upload } from "@vercel/blob/client";
 import type { ComplianceDocumentListItem } from "@/lib/sanity/types";
 import type { Citation, PresentedCitation } from "@/lib/chat/types";
@@ -51,7 +52,7 @@ interface ProjectItem {
 }
 
 interface AppShellProps {
-  initialTab?: "chat" | "documents";
+  initialTab?: "chat" | "documents" | "handbook";
   initialProjectId?: string;
   initialConversationId?: string;
   children?: React.ReactNode;
@@ -85,7 +86,7 @@ export function AppShell({
 }: AppShellProps) {
   const router = useRouter();
   const { data: session, isPending } = useSession();
-  const [activeTab, setActiveTab] = useState<"chat" | "documents">(initialTab);
+  const [activeTab, setActiveTab] = useState<"chat" | "documents" | "handbook">(initialTab);
   const [searchQuery, setSearchQuery] = useState("");
   const [documents, setDocuments] = useState<ComplianceDocumentListItem[]>([]);
   const [loadingDocs, setLoadingDocs] = useState(false);
@@ -770,6 +771,19 @@ export function AppShell({
               <FileText className="w-4 h-4" />
               <span>Compliance Documents</span>
             </Link>
+
+            <Link
+              href={currentProjectId ? `/projects/${currentProjectId}/handbook` : "/"}
+              aria-current={activeTab === "handbook" ? "page" : undefined}
+              className={`flex items-center gap-2.5 px-3 py-2 rounded-xl font-medium text-xs transition-colors focus-visible:ring-2 focus-visible:ring-[#00c9d2] ${
+                activeTab === "handbook"
+                  ? "bg-[#020618] text-white font-semibold shadow-xs"
+                  : "text-slate-600 hover:text-[#020618] hover:bg-slate-50"
+              }`}
+            >
+              <BookOpen className="w-4 h-4" />
+              <span>Project Handbook</span>
+            </Link>
           </nav>
 
           {/* Project Tools & MCP Credentials */}
@@ -928,6 +942,15 @@ export function AppShell({
           >
             <FileText className="w-3.5 h-3.5" />
             <span>Documents</span>
+          </Link>
+          <Link
+            href={currentProjectId ? `/projects/${currentProjectId}/handbook` : "/"}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-semibold transition ${
+              activeTab === "handbook" ? "bg-white text-[#020618] shadow-xs" : "text-slate-600"
+            }`}
+          >
+            <BookOpen className="w-3.5 h-3.5" />
+            <span>Handbook</span>
           </Link>
         </div>
       </div>
@@ -1257,6 +1280,17 @@ export function AppShell({
                   </div>
                 </div>
               )}
+            </div>
+          ) : activeTab === "handbook" ? (
+            /* ========================================================================= */
+            /* HANDBOOK VIEW                                                             */
+            /* ========================================================================= */
+            <div className="max-w-5xl mx-auto">
+              <HandbookView
+                projectId={currentProjectId}
+                projectName={activeProject?.name || "Project"}
+                userId={session?.user?.id}
+              />
             </div>
           ) : (
             /* ========================================================================= */

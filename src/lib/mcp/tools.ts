@@ -5,6 +5,7 @@ import {
   listPublishedDocuments,
   getPublishedDocumentById,
 } from "@/lib/sanity/published-queries";
+import { getHandbookState } from "@/lib/handbook/service";
 
 if (typeof window !== "undefined") {
   throw new Error("Cannot import server MCP tools in client-side code");
@@ -181,5 +182,122 @@ export function createProjectScopedMcpTools(projectId: string): ScopedMcpTool[] 
     },
   };
 
-  return [searchRulesTool, getRuleTool, listDocumentsTool, getDocumentTool];
+  const getHandbookIndexTool: ScopedMcpTool = {
+    name: "get_project_handbook_index",
+    description:
+      "Returns generation metadata, chapter and section directory, freshness states, and source citation metadata for the authenticated project's generated handbook. Returns HANDBOOK_REFRESH_REQUIRED if the handbook is missing or out of date.",
+    inputSchema: z.object({}),
+    handler: async (): Promise<McpToolHandlerResult> => {
+      const state = await getHandbookState({ projectId });
+      if (state.status !== "ready" || !state.handbook) {
+        return {
+          isError: true,
+          errorCode: "HANDBOOK_REFRESH_REQUIRED",
+          error:
+            "Project handbook is missing, stale, or out of sync with reviewed rules. Please generate the handbook before querying.",
+        };
+      }
+      const hb = state.handbook;
+      return {
+        projectId: hb.projectId,
+        projectName: hb.projectName,
+        generatedAt: hb.generatedAt,
+        documentCount: hb.documentCount,
+        ruleCount: hb.ruleCount,
+        currentRuleCount: hb.currentRuleCount,
+        reviewRequiredRuleCount: hb.reviewRequiredRuleCount,
+        chapters: hb.chapters.map((ch) => ({
+          number: ch.number,
+          anchor: ch.anchor,
+          title: ch.title,
+          industry: ch.industry,
+          sections: [
+            ...ch.currentRules.map((r) => ({
+              number: r.number,
+              anchor: r.anchor,
+              ruleName: r.ruleName,
+              freshness: r.freshness,
+              sourceKey: r.sourceKey,
+            })),
+            ...ch.reviewRequiredRules.map((r) => ({
+              number: r.number,
+              anchor: r.anchor,
+              ruleName: r.ruleName,
+              freshness: r.freshness,
+              sourceKey: r.sourceKey,
+            })),
+          ],
+        })),
+        citations: hb.citations,
+      };
+    },
+  };
+
+  const getHandbookSectionTool: ScopedMcpTool = {
+    name: "get_project_handbook_section",
+    description:
+      "Get a specific handbook section by its anchor (e.g. sec-1-1) along with its cited source note for the authenticated project. Returns NOT_FOUND for invalid anchors and HANDBOOK_REFRESH_REQUIRED if the handbook is not current.",
+    inputSchema: z.object({
+      anchor: z
+        .string()
+        .min(1, "anchor must not be empty")
+        .describe("Section anchor identifier, e.g. sec-1-1"),
+    }),
+    handler: async ({ anchor }: { anchor: string }): Promise<McpToolHandlerResult> => {
+      const state = await getHandbookState({ projectId });
+      if (state.status !== "ready" || !state.handbook) {
+        return {
+          isError: true,
+          errorCode: "HANDBOOK_REFRESH_REQUIRED",
+          error:
+            "Project handbook is missing, stale, or out of sync with reviewed rules. Please generate the handbook before querying.",
+        };
+      }
+
+      let foundSection: any = null;
+      let foundChapter: any = null;
+
+      for (const ch of state.handbook.chapters) {
+        const sec = [...ch.currentRules, ...ch.reviewRequiredRules].find(
+          (r) => r.anchor === anchor
+        );
+        if (sec) {
+          foundSection = sec;
+          foundChapter = ch;
+          break;
+        }
+      }
+
+      if (!foundSection || !foundChapter) {
+        return {
+          isError: true,
+          errorCode: "NOT_FOUND",
+          error: `Handbook section not found: ${anchor}`,
+        };
+      }
+
+      const citation = state.handbook.citations.find(
+        (c) => c.sourceKey === foundSection.sourceKey
+      );
+
+      return {
+        chapter: {
+          number: foundChapter.number,
+          title: foundChapter.title,
+          industry: foundChapter.industry,
+        },
+        section: foundSection,
+        citation: citation || null,
+      };
+    },
+  };
+
+  return [
+    searchRulesTool,
+    getRuleTool,
+    listDocumentsTool,
+    getDocumentTool,
+    getHandbookIndexTool,
+    getHandbookSectionTool,
+  ];
 }

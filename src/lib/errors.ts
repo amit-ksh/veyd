@@ -9,6 +9,8 @@ export const ErrorCodes = {
   INTERNAL_ERROR: "INTERNAL_ERROR",
   UNAUTHORIZED: "UNAUTHORIZED",
   CONFLICT: "CONFLICT",
+  HANDBOOK_SOURCE_CHANGED: "HANDBOOK_SOURCE_CHANGED",
+  HANDBOOK_REFRESH_REQUIRED: "HANDBOOK_REFRESH_REQUIRED",
 } as const;
 
 export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes] | string;

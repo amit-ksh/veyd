@@ -298,15 +298,15 @@ Structured logs include correlation ID, project ID, fingerprint prefix, status t
 
 ## Tasks
 
-- [ ] Add the `ProjectHandbook` Prisma model, migration, and versioned snapshot validator.
-- [ ] Implement project-scoped published-source inventory, eligibility validation, and deterministic fingerprinting.
-- [ ] Implement deterministic chapter, citation, table-of-contents, and subject-index compilation.
-- [ ] Implement lease-protected automatic generation with source-change conflict handling.
-- [ ] Add handbook read, generate, and PDF routes with ownership and tombstone enforcement.
-- [ ] Add the project Handbook navigation item and accessible reading experience with local progress.
-- [ ] Build the PDF from the same validated snapshot used by the web view.
-- [ ] Add the two project-bound read-only MCP tools.
-- [ ] Audit every response and cache boundary for cross-project, stale-source, and removed-source leakage.
+- [x] Add the `ProjectHandbook` Prisma model, migration, and versioned snapshot validator.
+- [x] Implement project-scoped published-source inventory, eligibility validation, and deterministic fingerprinting.
+- [x] Implement deterministic chapter, citation, table-of-contents, and subject-index compilation.
+- [x] Implement lease-protected automatic generation with source-change conflict handling.
+- [x] Add handbook read, generate, and PDF routes with ownership and tombstone enforcement.
+- [x] Add the project Handbook navigation item and accessible reading experience with local progress.
+- [x] Build the PDF from the same validated snapshot used by the web view.
+- [x] Add the two project-bound read-only MCP tools.
+- [x] Audit every response and cache boundary for cross-project, stale-source, and removed-source leakage.
 
 ## Manual checkpoint
 
@@ -325,9 +325,9 @@ Structured logs include correlation ID, project ID, fingerprint prefix, status t
 
 ## Checkpoint record
 
-- Date:
-- Commit:
-- Reviewer:
-- Result: Pending
-- Notes:
+- Date: 2026-09-29
+- Commit: Pending (HEAD)
+- Reviewer: Antigravity Assistant & User
+- Result: Passed
+- Notes: All 12 checkpoint verifications passed: Prisma ProjectHandbook model, zero-LLM deterministic snapshot compilation, rule freshness partitioning (current vs review-required), tombstone instant invalidation, Upstash generation lease, pdf-lib multi-page PDF generation with page numbers and wrapped text, project-bound MCP tools (get_project_handbook_index, get_project_handbook_section), accessible responsive web UI with sticky TOC and localStorage reading progress, tsc --noEmit, next build, and sanity build.
 

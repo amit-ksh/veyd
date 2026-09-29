@@ -79,8 +79,32 @@ model Project {
   owner          User                  @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   conversations  Conversation[]
   mcpCredentials ProjectMcpCredential[]
+  handbook       ProjectHandbook?
 
   @@index([ownerId, updatedAt])
+}
+
+// --- Project Handbook Snapshots ---
+
+model ProjectHandbook {
+  id                    String    @id @default(cuid())
+  projectId             String    @unique
+  status                String    // generating | ready | empty | failed
+  sourceFingerprint     String?
+  snapshot              Json?
+  documentCount         Int       @default(0)
+  ruleCount             Int       @default(0)
+  currentRuleCount      Int       @default(0)
+  reviewRequiredCount   Int       @default(0)
+  generationStartedAt   DateTime?
+  generatedAt           DateTime?
+  lastErrorCode         String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, status])
 }
 
 model ProjectMcpCredential {
