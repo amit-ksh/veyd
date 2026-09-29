@@ -15,6 +15,7 @@ function buildSearchQuery(limit: number) {
     *[
       _type == "complianceRule" &&
       !(_id in path("drafts.**")) &&
+      projectId == $projectId &&
       (!defined($industry) || industry == $industry) &&
       (!defined($jurisdiction) || jurisdiction == $jurisdiction) &&
       [ruleName, description, requirement, applicability, citation, keywords[]]
@@ -27,12 +28,12 @@ function buildSearchQuery(limit: number) {
       [description, requirement, applicability] match text::query($searchQuery)
     )
     | order(_score desc)[0...${limit}] {
-      _id, _score, ruleName, description, requirement, applicability,
+      _id, projectId, _score, ruleName, description, requirement, applicability,
       industry, jurisdiction, regulator, citation, evidenceExcerpt,
       sourcePages, keywords, freshnessStatus, effectiveDate, expiresAt,
       lastReviewedAt,
       "sourceDocument": sourceDocument->{
-        _id, title, "fileUrl": fileAsset.asset->url
+        _id, projectId, title, "fileUrl": fileAsset.asset->url
       }
     }
   `);
@@ -41,6 +42,15 @@ function buildSearchQuery(limit: number) {
 export async function searchComplianceRulesForChat(
   input: SearchComplianceRulesInput
 ): Promise<SearchComplianceRulesOutput> {
+  const { projectId } = input;
+  if (!projectId) {
+    return {
+      classification: "empty",
+      summary: "No project context provided for search.",
+      rules: [],
+    };
+  }
+
   const trimmedQuery = input.query?.trim();
   if (!trimmedQuery) {
     return {
@@ -57,6 +67,7 @@ export async function searchComplianceRulesForChat(
     const rawResults = await publishedClient.fetch<
       Array<{
         _id: string;
+        projectId: string;
         _score?: number;
         ruleName: string;
         description?: string;
@@ -75,12 +86,14 @@ export async function searchComplianceRulesForChat(
         lastReviewedAt?: string;
         sourceDocument?: {
           _id: string;
+          projectId?: string;
           title: string;
           fileUrl?: string;
         };
       }>
     >(buildSearchQuery(validLimit), {
       searchQuery: trimmedQuery,
+      projectId,
       industry: input.industry?.trim() || null,
       jurisdiction: input.jurisdiction?.trim() || null,
     });
@@ -93,10 +106,27 @@ export async function searchComplianceRulesForChat(
       };
     }
 
+    // Filter out any rule where dereferenced sourceDocument belongs to another project
+    const verifiedResults = rawResults.filter((r) => {
+      if (r.sourceDocument && r.sourceDocument.projectId && r.sourceDocument.projectId !== projectId) {
+        console.warn(`[SECURITY] Chat search rule ${r._id} source document project mismatch: rule=${projectId}, doc=${r.sourceDocument.projectId}`);
+        return false;
+      }
+      return true;
+    });
+
+    if (verifiedResults.length === 0) {
+      return {
+        classification: "empty",
+        summary: `No published compliance rules found matching '${trimmedQuery}'.`,
+        rules: [],
+      };
+    }
+
     const now = Date.now();
     let hasStaleOrExpired = false;
 
-    const rules: ComplianceRuleItem[] = rawResults.map((r) => {
+    const rules: ComplianceRuleItem[] = verifiedResults.map((r) => {
       const isNotCurrent = (r.freshnessStatus || "current") !== "current";
       const isExpired = r.expiresAt ? new Date(r.expiresAt).getTime() <= now : false;
 

@@ -23,6 +23,7 @@ model User {
   sessions      Session[]
   accounts      Account[]
   conversations Conversation[]
+  projects      Project[]
 }
 
 // --- better-auth tables ---
@@ -66,19 +67,53 @@ model Verification {
   updatedAt  DateTime? @updatedAt
 }
 
+// --- Projects & Project-Bound MCP Credentials ---
+
+model Project {
+  id             String                @id @default(cuid())
+  ownerId        String
+  name           String
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  owner          User                  @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  conversations  Conversation[]
+  mcpCredentials ProjectMcpCredential[]
+
+  @@index([ownerId, updatedAt])
+}
+
+model ProjectMcpCredential {
+  id         String    @id @default(cuid())
+  projectId  String
+  label      String
+  tokenHash  String    @unique
+  tokenHint  String
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+
+  project    Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, revokedAt])
+}
+
 // --- User-Scoped Chat Persistence ---
 
 model Conversation {
   id        String    @id @default(cuid())
   userId    String
+  projectId String
   title     String    @default("Compliance Research Chat")
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
   messages  Message[]
 
   @@index([userId, updatedAt])
+  @@index([projectId, updatedAt])
 }
 
 model Message {

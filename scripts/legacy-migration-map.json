@@ -1,0 +1,22 @@
+{
+  "description": "Explicit legacy-record project assignment mapping for Milestone 11",
+  "conversations": {
+    "cmujrhtml0001b7o0oiwzis1k": "cmum60e110001b7hkfor0yx83"
+  },
+  "documents": {
+    "doc-fda-fsma-2026": "cmum60e110001b7hkfor0yx83",
+    "doc.m4.1790503995090": "cmum60ekc0003b7hktqfirvvo",
+    "doc.m4.1790504035639": "cmum60ekc0003b7hktqfirvvo"
+  },
+  "rules": {
+    "rule-fda-allergen-control": "cmum60e110001b7hkfor0yx83",
+    "rule.allergen-labeling": "cmum60e110001b7hkfor0yx83",
+    "rule.hazard-analysis": "cmum60e110001b7hkfor0yx83",
+    "rule.sanitation-spss": "cmum60e110001b7hkfor0yx83",
+    "f66b103c-ff71-42cf-87bc-ac0f6f3edc8b": "cmum60ekc0003b7hktqfirvvo",
+    "rule.worker-safety-osha": "cmum60ekc0003b7hktqfirvvo",
+    "drafts.0d7b9ddd-fac0-45f5-8017-1e2131be07d1": "cmum60ekc0003b7hktqfirvvo",
+    "drafts.bd9ec71a-baf9-43f7-959c-6a1c19404c1a": "cmum60ekc0003b7hktqfirvvo",
+    "drafts.rule-pending-review": "cmum60e110001b7hkfor0yx83"
+  }
+}

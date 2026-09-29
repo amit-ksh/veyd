@@ -18,6 +18,15 @@ export default defineType({
     // Group 1: Rule Identity
     // ------------------------------------------------------------------------
     defineField({
+      name: "projectId",
+      title: "Project ID",
+      type: "string",
+      group: "identity",
+      description: "External PostgreSQL application project identifier, copied from source document",
+      readOnly: true,
+      validation: (rule) => rule.required().min(1),
+    }),
+    defineField({
       name: "ruleName",
       title: "Rule Name",
       type: "string",

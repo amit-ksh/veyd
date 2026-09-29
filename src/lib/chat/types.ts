@@ -11,6 +11,7 @@ export type Citation = {
 
 export type SearchComplianceRulesInput = {
   query: string;
+  projectId: string;
   industry?: string;
   jurisdiction?: string;
   limit?: number; // 1..10, default 5

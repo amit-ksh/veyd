@@ -167,15 +167,15 @@ Empty states distinguish:
 
 ## Tasks
 
-- [ ] Add the Prisma project and MCP credential models and migrate conversations.
-- [ ] Add required project fields and validation to Sanity documents and rules.
-- [ ] Build and dry-run the explicit legacy-record assignment migration.
-- [ ] Implement project create/list and owner-resolution services.
-- [ ] Move application routes and conversations to canonical project URLs.
-- [ ] Scope ingestion, document reads, rule search, chat, citations, and Studio views.
-- [ ] Replace global MCP authorization with project-bound credential resolution.
-- [ ] Add the sidebar project list and accessible Add project flow.
-- [ ] Audit every query and route for a required trusted project context.
+- [x] Add the Prisma project and MCP credential models and migrate conversations.
+- [x] Add required project fields and validation to Sanity documents and rules.
+- [x] Build and dry-run the explicit legacy-record assignment migration.
+- [x] Implement project create/list and owner-resolution services.
+- [x] Move application routes and conversations to canonical project URLs.
+- [x] Scope ingestion, document reads, rule search, chat, citations, and Studio views.
+- [x] Replace global MCP authorization with project-bound credential resolution.
+- [x] Add the sidebar project list and accessible Add project flow.
+- [x] Audit every query and route for a required trusted project context.
 
 ## Manual checkpoint
 
@@ -191,8 +191,19 @@ Empty states distinguish:
 
 ## Checkpoint record
 
-- Date:
-- Commit:
-- Reviewer:
-- Result: Pending
+- Date: 2026-09-29
+- Commit: aa15811
+- Reviewer: Automated Verification + Antigravity Agent
+- Result: Passed
 - Notes:
+  - Prisma schema extended with `Project` and `ProjectMcpCredential` models; `Conversation.projectId` relation made required.
+  - Initial user `amit.veyd@yopmail.com` seeded with `Food Safety` (`cmum60e110001b7hkfor0yx83`) and `Pharma Protocol` (`cmum60ekc0003b7hktqfirvvo`) projects.
+  - Legacy data inventory conducted and explicit mapping defined in `scripts/legacy-migration-map.json`.
+  - Migration script executed live with 100% invariant adherence: all conversation userIds match project owner, all rule projectIds match their sourceDocument.
+  - Sanity schema types and GROQ queries updated to enforce `projectId == $projectId` and dereferenced sourceDocument projectId validation.
+  - MCP endpoint (`/api/mcp`) authenticates project-scoped bearer tokens via SHA-256 hash lookup in PostgreSQL.
+  - MCP tools bind `projectId` server-side and exclude `projectId` from tool input schemas; all four tools remain strictly read-only.
+  - Canonical project routes implemented: `/projects/[projectId]/chat`, `/projects/[projectId]/chat/[conversationId]`, `/projects/[projectId]/documents`.
+  - Root routes (`/chat`, `/documents`, `/chat/[conversationId]`) redirect to canonical project URLs or return non-enumerating 404s.
+  - UI updated with desktop sidebar and compact mobile navigation (responsive down to 320px) featuring project switcher, `AddProjectModal`, and `ProjectMcpModal`.
+  - All automated checks verified: `tsc --noEmit` passed, `sanity build` passed, `pnpm build` passed, and `scratch/verify-m11.mjs` passed end-to-end.

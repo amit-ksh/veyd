@@ -63,14 +63,15 @@ export {
   getPublishedRuleById,
 };
 
-export async function getComplianceDocuments(): Promise<ComplianceDocumentListItem[]> {
-  return listPublishedDocuments({ limit: 50 });
+export async function getComplianceDocuments(projectId: string): Promise<ComplianceDocumentListItem[]> {
+  return listPublishedDocuments({ projectId, limit: 50 });
 }
 
 export async function getComplianceDocumentById(
-  documentId: string
+  documentId: string,
+  projectId: string
 ): Promise<ComplianceDocumentDetail | null> {
-  return getPublishedDocumentById(documentId);
+  return getPublishedDocumentById(documentId, projectId);
 }
 
 export async function getPublishedRuleCountByDocumentId(
@@ -172,15 +173,17 @@ export const ruleDetailQuery = defineQuery(`
 
 export async function searchComplianceRules(
   query: string,
+  projectId: string,
   limit: number = 10
 ): Promise<ComplianceRuleSearchResult[]> {
-  return searchPublishedRules({ query, limit, includeStale: true });
+  return searchPublishedRules({ query, projectId, limit, includeStale: true });
 }
 
 export async function getComplianceRuleById(
-  ruleId: string
+  ruleId: string,
+  projectId: string
 ): Promise<ComplianceRuleDetail | null> {
-  return getPublishedRuleById(ruleId);
+  return getPublishedRuleById(ruleId, projectId);
 }
 
 // Backward-compatibility aliases for earlier callers

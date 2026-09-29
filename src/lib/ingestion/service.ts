@@ -12,6 +12,7 @@ import { logger } from "../logger";
 
 export interface IngestDocumentParams {
   blobUrl: string;
+  projectId: string;
   title: string;
   industry: string;
 }
@@ -90,7 +91,7 @@ export async function ingestDocument(
   params: IngestDocumentParams,
   correlationId?: string
 ): Promise<IngestDocumentResult> {
-  const { blobUrl, title, industry } = params;
+  const { blobUrl, projectId, title, industry } = params;
   const token = process.env.BLOB_READ_WRITE_TOKEN;
 
   let createdDocumentId: string | null = null;
@@ -123,6 +124,7 @@ export async function ingestDocument(
       await writeClient.create({
         _id: docId,
         _type: "complianceDocument",
+        projectId,
         title,
         fileAsset: {
           _type: "file",
@@ -161,6 +163,7 @@ export async function ingestDocument(
         tx.create({
           _id: draftId,
           _type: "complianceRule",
+          projectId,
           ruleName: rule.ruleName,
           description: rule.description,
           requirement: rule.requirement,

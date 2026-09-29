@@ -66,5 +66,6 @@ Milestone 10 records acceptance of the original single-context release. The foll
 | --- | --- | --- | --- |
 | 11 | [Project context and MCP scope](11-project-context-and-mcp-scope.md) | User-owned Food/Civil-style projects, scoped data, sidebar list/add, project-bound MCP credentials | Two projects remain isolated through app and MCP |
 | 12 | [Document context removal](12-document-context-removal.md) | Authorized document/rule/asset cleanup with retained historical citation origins | Removed context is unreachable while old citations remain attributable |
+| 13 | [Automatically generated project handbook](13-project-handbook.md) | Cited project book with contents, subject index, reading progress, PDF, and MCP reads | Web and PDF regenerate from current project sources without cross-project or removed content |
 
 For the extended product, the project-bound credential contract in Milestone 11 replaces the global `MCP_TOOL_SECRET` boundary above. The original statement remains the historical Milestone 0–10 contract.

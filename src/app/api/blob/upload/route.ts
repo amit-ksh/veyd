@@ -5,11 +5,29 @@ import { errorResponse } from "@/lib/http";
 import { ErrorCodes } from "@/lib/errors";
 import { logger, getOrCreateCorrelationId } from "@/lib/logger";
 
+import { auth } from "@/lib/auth";
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const correlationId = getOrCreateCorrelationId(req);
+
+  // Authenticate session
+  const session = await auth.api.getSession({
+    headers: req.headers,
+  });
+
+  if (!session?.user?.id) {
+    return errorResponse(
+      ErrorCodes.UNAUTHORIZED,
+      "Authentication required to upload documents",
+      401,
+      undefined,
+      undefined,
+      correlationId
+    );
+  }
 
   // 1. Enforce ingestion rate limit (5 per rolling hour per IP)
   const ip = getClientIp(req);

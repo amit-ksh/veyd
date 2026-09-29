@@ -8,6 +8,7 @@ if (typeof window !== "undefined") {
 export type ConversationResponse = {
   conversation: {
     id: string;
+    projectId: string;
     createdAt: string;
     updatedAt: string;
   };
@@ -22,12 +23,17 @@ export type ConversationResponse = {
 };
 
 /**
- * Creates a new conversation in PostgreSQL for the authenticated user.
+ * Creates a new conversation in PostgreSQL for the authenticated user and project.
  */
-export async function createConversation(userId: string, title?: string) {
+export async function createConversation(userId: string, projectId: string, title?: string) {
+  if (!projectId) {
+    throw new Error("projectId is required to create a conversation");
+  }
+
   return prisma.conversation.create({
     data: {
       userId,
+      projectId,
       title: title || "Compliance Research Chat",
     },
   });
@@ -35,16 +41,18 @@ export async function createConversation(userId: string, title?: string) {
 
 /**
  * Retrieves a conversation and its chronologically ordered messages.
- * Scoped strictly to the authenticated user (returns null if non-existent or owned by another user).
+ * Scoped strictly to the authenticated user and optional projectId (returns null if non-existent or owned by another user/project).
  */
 export async function getConversation(
   conversationId: string,
-  userId: string
+  userId: string,
+  projectId?: string
 ): Promise<ConversationResponse | null> {
   const conv = await prisma.conversation.findFirst({
     where: {
       id: conversationId,
       userId,
+      ...(projectId ? { projectId } : {}),
     },
     include: {
       messages: {
@@ -62,6 +70,7 @@ export async function getConversation(
   return {
     conversation: {
       id: conv.id,
+      projectId: conv.projectId,
       createdAt: conv.createdAt.toISOString(),
       updatedAt: conv.updatedAt.toISOString(),
     },

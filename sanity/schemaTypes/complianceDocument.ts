@@ -12,6 +12,15 @@ export default defineType({
   ],
   fields: [
     defineField({
+      name: "projectId",
+      title: "Project ID",
+      type: "string",
+      group: "document",
+      description: "External PostgreSQL application project identifier",
+      readOnly: true,
+      validation: (rule) => rule.required().min(1),
+    }),
+    defineField({
       name: "title",
       title: "Document Title",
       type: "string",

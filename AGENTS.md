@@ -23,6 +23,7 @@ Before implementing a feature, read:
 | Final manual release checks | [`$compliance-manual-acceptance`](.agents/skills/compliance-manual-acceptance/SKILL.md) | [`docs/10-manual-acceptance-checklist.md`](docs/10-manual-acceptance-checklist.md) |
 | User-owned projects, sidebar project list/add, project-scoped MCP | [`$compliance-project-context`](.agents/skills/compliance-project-context/SKILL.md) | [`docs/11-project-context-and-mcp-scope.md`](docs/11-project-context-and-mcp-scope.md) |
 | Remove a document and its active context while preserving citation origins | [`$compliance-document-removal`](.agents/skills/compliance-document-removal/SKILL.md) | [`docs/12-document-context-removal.md`](docs/12-document-context-removal.md) |
+| Automatically generated cited project handbook, book index, reading progress, PDF | [`$compliance-project-handbook`](.agents/skills/compliance-project-handbook/SKILL.md) | [`docs/13-project-handbook.md`](docs/13-project-handbook.md) |
 
 ## Using these skills with any model
 

@@ -19,6 +19,8 @@ import {
   appendUserMessage,
   appendAssistantMessage,
 } from "@/lib/conversations/service";
+import { getAuthorizedProject } from "@/lib/projects/service";
+import { prisma } from "@/lib/prisma";
 import { logger, getOrCreateCorrelationId } from "@/lib/logger";
 
 export const runtime = "nodejs";
@@ -117,12 +119,17 @@ export async function POST(req: NextRequest) {
     messages?: unknown;
     conversationId?: unknown;
     clientMessageId?: unknown;
+    projectId?: unknown;
   };
 
   const rawMessages = bodyObj.messages;
   const clientConversationId =
     typeof bodyObj.conversationId === "string" && bodyObj.conversationId.trim()
       ? bodyObj.conversationId.trim()
+      : undefined;
+  const clientProjectId =
+    typeof bodyObj.projectId === "string" && bodyObj.projectId.trim()
+      ? bodyObj.projectId.trim()
       : undefined;
 
   // 4. Reject empty conversations
@@ -202,15 +209,47 @@ export async function POST(req: NextRequest) {
 
   // 8. Persist user message in PostgreSQL BEFORE calling paid model services
   let activeConversationId: string;
+  let effectiveProjectId: string;
+
   if (clientConversationId) {
+    const existingConv = await prisma.conversation.findFirst({
+      where: {
+        id: clientConversationId,
+        userId,
+      },
+      select: { id: true, projectId: true },
+    });
+
+    if (!existingConv) {
+      return errorResponse(
+        ErrorCodes.NOT_FOUND,
+        "Conversation not found.",
+        404,
+        undefined,
+        rateLimitHeaders(rateLimit)
+      );
+    }
+
+    if (clientProjectId && clientProjectId !== existingConv.projectId) {
+      return errorResponse(
+        ErrorCodes.NOT_FOUND,
+        "Conversation not found.",
+        404,
+        undefined,
+        rateLimitHeaders(rateLimit)
+      );
+    }
+
+    effectiveProjectId = existingConv.projectId;
+    activeConversationId = existingConv.id;
+
     try {
       const appendResult = await appendUserMessage({
-        conversationId: clientConversationId,
+        conversationId: activeConversationId,
         userId,
         content: userText,
         clientMessageId,
       });
-      activeConversationId = clientConversationId;
 
       if (appendResult.isDuplicate) {
         // Duplicate submission detected: return early without re-running AI synthesis
@@ -218,7 +257,10 @@ export async function POST(req: NextRequest) {
           execute: async ({ writer }) => {
             writer.write({
               type: "data-conversation-id",
-              data: { conversationId: activeConversationId },
+              data: {
+                conversationId: activeConversationId,
+                projectId: effectiveProjectId,
+              },
             });
             writer.write({
               type: "data-duplicate-submission",
@@ -242,8 +284,30 @@ export async function POST(req: NextRequest) {
       );
     }
   } else {
-    // First message: Create new Conversation record linked to session.user.id
-    const newConv = await createConversation(userId);
+    // First message: projectId is required
+    if (!clientProjectId) {
+      return errorResponse(
+        ErrorCodes.INVALID_REQUEST,
+        "projectId is required to start a new chat conversation.",
+        400,
+        undefined,
+        rateLimitHeaders(rateLimit)
+      );
+    }
+
+    const authorizedProject = await getAuthorizedProject(clientProjectId, userId);
+    if (!authorizedProject) {
+      return errorResponse(
+        ErrorCodes.NOT_FOUND,
+        "Project not found.",
+        404,
+        undefined,
+        rateLimitHeaders(rateLimit)
+      );
+    }
+
+    effectiveProjectId = authorizedProject.id;
+    const newConv = await createConversation(userId, effectiveProjectId);
     activeConversationId = newConv.id;
     await appendUserMessage({
       conversationId: activeConversationId,
@@ -284,7 +348,7 @@ export async function POST(req: NextRequest) {
 
   // 11. Prepare tracking and server tools
   const tracker = createChatToolTracker();
-  const tools = createChatTools(tracker, req.signal);
+  const tools = createChatTools(tracker, req.signal, effectiveProjectId);
 
   // 12. Create UI message stream with early conversation ID and citations
   const stream = createUIMessageStream({
@@ -293,7 +357,10 @@ export async function POST(req: NextRequest) {
         // Send conversation ID as early stream data part so client updates URL immediately
         writer.write({
           type: "data-conversation-id",
-          data: { conversationId: activeConversationId },
+          data: {
+            conversationId: activeConversationId,
+            projectId: effectiveProjectId,
+          },
         });
 
         const result = streamText({

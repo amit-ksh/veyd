@@ -9,8 +9,12 @@ export const runtime = "nodejs";
 export const maxDuration = 300; // 300s maximum duration for Vercel synchronous ingestion
 export const dynamic = "force-dynamic";
 
+import { auth } from "@/lib/auth";
+import { getAuthorizedProject } from "@/lib/projects/service";
+
 const ingestRequestSchema = z.object({
   blobUrl: z.string().url("A valid blobUrl is required"),
+  projectId: z.string().min(1, "projectId is required"),
   title: z
     .string()
     .trim()
@@ -27,11 +31,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const correlationId = getOrCreateCorrelationId(req);
   const startTime = Date.now();
 
-  logger.info("ingest_request_start", {
-    correlationId,
-    route: "/api/documents/ingest",
-  });
-
   let body: unknown;
   try {
     body = await req.json();
@@ -40,7 +39,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       ErrorCodes.INVALID_REQUEST,
       "Invalid JSON request body",
       400,
-      undefined,
       undefined,
       correlationId
     );
@@ -59,10 +57,41 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       message,
       400,
       { issues: parsed.error.issues },
+      correlationId
+    );
+  }
+
+  // Authorize user owns the project
+  const session = await auth.api.getSession({
+    headers: req.headers,
+  });
+
+  if (!session?.user?.id) {
+    return errorResponse(
+      ErrorCodes.UNAUTHORIZED,
+      "Authentication required to ingest documents",
+      401,
       undefined,
       correlationId
     );
   }
+
+  const authorized = await getAuthorizedProject(parsed.data.projectId, session.user.id);
+  if (!authorized) {
+    return errorResponse(
+      ErrorCodes.NOT_FOUND,
+      "Project not found.",
+      404,
+      undefined,
+      correlationId
+    );
+  }
+
+  logger.info("ingest_request_start", {
+    correlationId,
+    route: "/api/documents/ingest",
+    projectId: parsed.data.projectId,
+  });
 
   try {
     const result = await ingestDocument(parsed.data, correlationId);

@@ -15,7 +15,7 @@ if (typeof window !== "undefined") {
 }
 
 // ============================================================================
-// 1. Documents Queries (Published perspective only)
+// 1. Documents Queries (Published perspective only, scoped to projectId)
 // ============================================================================
 
 export function buildDocumentListQuery(offset: number, limit: number) {
@@ -24,57 +24,66 @@ export function buildDocumentListQuery(offset: number, limit: number) {
     *[
       _type == "complianceDocument" &&
       !(_id in path("drafts.**")) &&
+      projectId == $projectId &&
       (!defined($industry) || industry == $industry) &&
       (!defined($status) || processingStatus == $status)
     ]
     | order(uploadedAt desc)[${offset}...${limitEnd}] {
-      _id, title, industry, originalFileName, fileSizeBytes, pageCount,
+      _id, projectId, title, industry, originalFileName, fileSizeBytes, pageCount,
       processingStatus, extractedRuleCount, uploadedAt, extractionCompletedAt,
       failureMessage,
       "fileUrl": fileAsset.asset->url,
-      "publishedRuleCount": count(*[_type == "complianceRule" && !(_id in path("drafts.**")) && sourceDocument._ref == ^._id])
+      "publishedRuleCount": count(*[_type == "complianceRule" && !(_id in path("drafts.**")) && projectId == $projectId && sourceDocument._ref == ^._id])
     }
   `);
 }
 
 export const publishedDocumentDetailQuery = defineQuery(`
-  *[_type == "complianceDocument" && !(_id in path("drafts.**")) && _id == $documentId][0] {
-    _id, title, industry, originalFileName, mimeType, fileSizeBytes, pageCount,
+  *[_type == "complianceDocument" && !(_id in path("drafts.**")) && _id == $documentId && projectId == $projectId][0] {
+    _id, projectId, title, industry, originalFileName, mimeType, fileSizeBytes, pageCount,
     processingStatus, extractionModel, extractedRuleCount, uploadedAt,
     extractionCompletedAt, failureMessage,
     "fileUrl": fileAsset.asset->url,
-    "publishedRuleCount": count(*[_type == "complianceRule" && !(_id in path("drafts.**")) && sourceDocument._ref == ^._id])
+    "publishedRuleCount": count(*[_type == "complianceRule" && !(_id in path("drafts.**")) && projectId == $projectId && sourceDocument._ref == ^._id])
   }
 `);
 
-export async function listPublishedDocuments(params?: {
+export async function listPublishedDocuments(params: {
+  projectId: string;
   industry?: string;
   status?: "processing" | "ready" | "failed";
   limit?: number;
   offset?: number;
 }): Promise<ComplianceDocumentListItem[]> {
-  const limit = Math.max(1, Math.min(50, params?.limit ?? 20));
-  const offset = Math.max(0, Math.min(500, params?.offset ?? 0));
+  const { projectId } = params;
+  if (!projectId) {
+    throw new Error("projectId is required for listPublishedDocuments");
+  }
+
+  const limit = Math.max(1, Math.min(50, params.limit ?? 20));
+  const offset = Math.max(0, Math.min(500, params.offset ?? 0));
 
   const query = buildDocumentListQuery(offset, limit);
   return publishedClient.fetch<ComplianceDocumentListItem[]>(query, {
-    industry: params?.industry?.trim() || null,
-    status: params?.status || null,
+    projectId,
+    industry: params.industry?.trim() || null,
+    status: params.status || null,
   });
 }
 
 export async function getPublishedDocumentById(
-  documentId: string
+  documentId: string,
+  projectId: string
 ): Promise<ComplianceDocumentDetail | null> {
-  if (!documentId || documentId.startsWith("drafts.")) return null;
-  return publishedClient.fetch<ComplianceDocumentDetail | null, { documentId: string }>(
+  if (!documentId || documentId.startsWith("drafts.") || !projectId) return null;
+  return publishedClient.fetch<ComplianceDocumentDetail | null, { documentId: string; projectId: string }>(
     publishedDocumentDetailQuery,
-    { documentId }
+    { documentId, projectId }
   );
 }
 
 // ============================================================================
-// 2. Rules Queries (Published perspective only)
+// 2. Rules Queries (Published perspective only, scoped to projectId)
 // ============================================================================
 
 export function buildRuleSearchQuery(limit: number) {
@@ -82,6 +91,7 @@ export function buildRuleSearchQuery(limit: number) {
     *[
       _type == "complianceRule" &&
       !(_id in path("drafts.**")) &&
+      projectId == $projectId &&
       (!defined($industry) || industry == $industry) &&
       (!defined($jurisdiction) || jurisdiction == $jurisdiction) &&
       [ruleName, description, requirement, applicability, citation, keywords[]]
@@ -94,71 +104,97 @@ export function buildRuleSearchQuery(limit: number) {
       [description, requirement, applicability] match text::query($searchQuery)
     )
     | order(_score desc)[0...${limit}] {
-      _id, _score, ruleName, description, requirement, applicability,
+      _id, projectId, _score, ruleName, description, requirement, applicability,
       industry, jurisdiction, regulator, citation, evidenceExcerpt,
       sourcePages, keywords, freshnessStatus, effectiveDate, expiresAt,
       lastReviewedAt,
       "sourceDocument": sourceDocument->{
-        _id, title, "fileUrl": fileAsset.asset->url
+        _id, projectId, title, "fileUrl": fileAsset.asset->url
       }
     }
   `);
 }
 
 export const publishedRuleDetailQuery = defineQuery(`
-  *[_type == "complianceRule" && !(_id in path("drafts.**")) && _id == $ruleId][0] {
-    _id, ruleName, description, requirement, applicability,
+  *[_type == "complianceRule" && !(_id in path("drafts.**")) && _id == $ruleId && projectId == $projectId][0] {
+    _id, projectId, ruleName, description, requirement, applicability,
     industry, jurisdiction, regulator, citation, evidenceExcerpt,
     sourcePages, keywords, freshnessStatus, effectiveDate, expiresAt,
     lastReviewedAt,
     "sourceDocument": sourceDocument->{
-      _id, title, "fileUrl": fileAsset.asset->url
+      _id, projectId, title, "fileUrl": fileAsset.asset->url
     }
   }
 `);
 
 export async function searchPublishedRules(params: {
   query: string;
+  projectId: string;
   industry?: string;
   jurisdiction?: string;
   includeStale?: boolean;
   limit?: number;
 }): Promise<ComplianceRuleSearchResult[]> {
+  const { projectId } = params;
+  if (!projectId) {
+    throw new Error("projectId is required for searchPublishedRules");
+  }
+
   const trimmed = params.query?.trim();
   if (!trimmed) return [];
 
   const rawLimit = Number.isInteger(params.limit) ? Number(params.limit) : 10;
   const targetLimit = Math.max(1, Math.min(20, rawLimit));
 
-  // If excluding stale rules, fetch extra candidate rules to allow post-filtering
   const fetchLimit = params.includeStale ? targetLimit : Math.min(20, targetLimit * 2);
   const query = buildRuleSearchQuery(fetchLimit);
 
   const results = await publishedClient.fetch<
     ComplianceRuleSearchResult[],
-    { searchQuery: string; industry: string | null; jurisdiction: string | null }
+    { searchQuery: string; projectId: string; industry: string | null; jurisdiction: string | null }
   >(query, {
     searchQuery: trimmed,
+    projectId,
     industry: params.industry?.trim() || null,
     jurisdiction: params.jurisdiction?.trim() || null,
   });
 
   if (!results || results.length === 0) return [];
 
+  // Filter out any rule where dereferenced sourceDocument belongs to another project
+  const projectVerified = results.filter((r) => {
+    if (r.sourceDocument && r.sourceDocument.projectId && r.sourceDocument.projectId !== projectId) {
+      console.warn(`[SECURITY] Rule ${r._id} source document project mismatch: rule=${projectId}, doc=${r.sourceDocument.projectId}`);
+      return false;
+    }
+    return true;
+  });
+
   // Filter out stale rules unless explicitly requested
   const filtered = params.includeStale
-    ? results
-    : results.filter((r) => !isRuleStale(r));
+    ? projectVerified
+    : projectVerified.filter((r) => !isRuleStale(r));
 
   return filtered.slice(0, targetLimit);
 }
 
 export async function getPublishedRuleById(
-  ruleId: string
+  ruleId: string,
+  projectId: string
 ): Promise<ComplianceRuleDetail | null> {
-  if (!ruleId || ruleId.startsWith("drafts.")) return null;
-  return publishedClient.fetch<ComplianceRuleDetail | null, { ruleId: string }>(
+  if (!ruleId || ruleId.startsWith("drafts.") || !projectId) return null;
+  const rule = await publishedClient.fetch<ComplianceRuleDetail | null, { ruleId: string; projectId: string }>(
     publishedRuleDetailQuery,
-    { ruleId }
+    { ruleId, projectId }
   );
+
+  if (!rule) return null;
+
+  // Invariant verification: dereferenced source document must belong to same project
+  if (rule.sourceDocument && rule.sourceDocument.projectId && rule.sourceDocument.projectId !== projectId) {
+    console.warn(`[SECURITY] Rule ${rule._id} source document project mismatch: rule=${projectId}, doc=${rule.sourceDocument.projectId}`);
+    return null;
+  }
+
+  return rule;
 }

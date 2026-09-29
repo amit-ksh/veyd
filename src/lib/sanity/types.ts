@@ -10,6 +10,7 @@ export type MessageRole = "user" | "assistant";
 
 export interface ComplianceDocumentListItem {
   _id: string;
+  projectId: string;
   title: string;
   industry: string;
   originalFileName: string;
@@ -26,6 +27,7 @@ export interface ComplianceDocumentListItem {
 
 export interface ComplianceDocumentDetail {
   _id: string;
+  projectId: string;
   title: string;
   industry: string;
   originalFileName: string;
@@ -49,12 +51,14 @@ export interface OperatorDraftRuleCounts {
 
 export interface ComplianceRuleSourceDocument {
   _id: string;
+  projectId?: string | null;
   title: string;
   fileUrl?: string | null;
 }
 
 export interface ComplianceRuleSearchResult {
   _id: string;
+  projectId: string;
   _score?: number;
   ruleName: string;
   description: string;
@@ -76,6 +80,7 @@ export interface ComplianceRuleSearchResult {
 
 export interface ComplianceRuleDetail {
   _id: string;
+  projectId: string;
   ruleName: string;
   description: string;
   requirement: string;

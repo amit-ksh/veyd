@@ -26,7 +26,11 @@ export function createChatToolTracker(): ChatToolTracker {
   };
 }
 
-export function createChatTools(tracker: ChatToolTracker, abortSignal?: AbortSignal) {
+export function createChatTools(
+  tracker: ChatToolTracker,
+  abortSignal?: AbortSignal,
+  projectId?: string
+) {
   return {
     searchComplianceRules: tool({
       description:
@@ -39,7 +43,13 @@ export function createChatTools(tracker: ChatToolTracker, abortSignal?: AbortSig
       }),
       execute: async ({ query, industry, jurisdiction, limit }) => {
         tracker.calledTools.push("searchComplianceRules");
-        const out = await searchComplianceRulesForChat({ query, industry, jurisdiction, limit });
+        const out = await searchComplianceRulesForChat({
+          query,
+          industry,
+          jurisdiction,
+          limit,
+          projectId: projectId || "",
+        });
         tracker.sanityClassification = out.classification;
         tracker.sanityRuleCount = out.rules.length;
 

@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
-import { mcpTools } from "@/lib/mcp/tools";
+import { createProjectScopedMcpTools } from "@/lib/mcp/tools";
+import { resolveProjectFromMcpToken } from "@/lib/projects/credentials";
+import { prisma } from "@/lib/prisma";
 import { getServerConfig } from "@/lib/config";
 import { logger, getOrCreateCorrelationId } from "@/lib/logger";
 
@@ -11,10 +13,9 @@ export const maxDuration = 30;
 export const dynamic = "force-dynamic";
 
 /**
- * Timing-safe bearer token verification.
- * Does not log credentials and checks byte-by-byte equality.
+ * Timing-safe bearer token verification for legacy fallback.
  */
-function isBearerAuthorized(req: NextRequest, expectedSecret: string): boolean {
+function isLegacyBearerAuthorized(req: NextRequest, expectedSecret: string): boolean {
   const authHeader = req.headers.get("authorization");
   if (!authHeader) return false;
 
@@ -33,16 +34,28 @@ function isBearerAuthorized(req: NextRequest, expectedSecret: string): boolean {
 }
 
 /**
- * Constructs a fresh, stateless McpServer per request.
- * Exposes exclusively the 4 published Sanity compliance tools.
+ * Extracts plaintext token from Bearer authorization header.
  */
-function buildServer(requestId: string) {
+function extractBearerToken(req: NextRequest): string | null {
+  const authHeader = req.headers.get("authorization");
+  if (!authHeader) return null;
+  const match = /^Bearer\s+(.+)$/i.exec(authHeader);
+  return match ? match[1].trim() : null;
+}
+
+/**
+ * Constructs a fresh, stateless McpServer bound to the authorized project.
+ * Exposes exclusively the 4 published Sanity compliance tools scoped to this project.
+ */
+function buildServer(requestId: string, projectId: string) {
   const server = new McpServer({
     name: "compliance-handbook",
-    version: "0.1.0",
+    version: "0.2.0",
   });
 
-  for (const tool of mcpTools) {
+  const tools = createProjectScopedMcpTools(projectId);
+
+  for (const tool of tools) {
     server.tool(
       tool.name,
       tool.description,
@@ -57,6 +70,7 @@ function buildServer(requestId: string) {
             console.log(
               JSON.stringify({
                 requestId,
+                projectId,
                 tool: tool.name,
                 durationMs,
                 errorCode: result.errorCode,
@@ -69,16 +83,12 @@ function buildServer(requestId: string) {
               content: [
                 {
                   type: "text" as const,
-                  text: JSON.stringify({
-                    code: result.errorCode,
-                    message: result.error,
-                  }),
+                  text: JSON.stringify(result, null, 2),
                 },
               ],
             };
           }
 
-          // Count results for structured logging without logging content bodies
           let resultCount = 1;
           if ("rules" in result && Array.isArray(result.rules)) {
             resultCount = result.rules.length;
@@ -89,6 +99,7 @@ function buildServer(requestId: string) {
           console.log(
             JSON.stringify({
               requestId,
+              projectId,
               tool: tool.name,
               durationMs,
               resultCount,
@@ -109,6 +120,7 @@ function buildServer(requestId: string) {
           console.error(
             JSON.stringify({
               requestId,
+              projectId,
               tool: tool.name,
               durationMs,
               errorCode: "INTERNAL_ERROR",
@@ -137,7 +149,7 @@ function buildServer(requestId: string) {
 }
 
 /**
- * Handles incoming MCP requests with strict bearer gate and stateless Streamable HTTP transport.
+ * Handles incoming MCP requests with project-bound bearer resolution.
  */
 async function handleMcpRequest(req: NextRequest) {
   const correlationId = getOrCreateCorrelationId(req);
@@ -162,15 +174,36 @@ async function handleMcpRequest(req: NextRequest) {
     );
   }
 
-  // 2. Strict Bearer Authentication before transport processing or tool execution
-  if (!isBearerAuthorized(req, config.MCP_TOOL_SECRET)) {
+  // 2. Resolve project from project-bound Bearer token
+  const token = extractBearerToken(req);
+  let targetProjectId: string | null = null;
+  let credentialId: string | null = null;
+
+  if (token) {
+    const resolved = await resolveProjectFromMcpToken(token);
+    if (resolved) {
+      targetProjectId = resolved.projectId;
+      credentialId = resolved.credentialId;
+    } else if (config.MCP_TOOL_SECRET && isLegacyBearerAuthorized(req, config.MCP_TOOL_SECRET)) {
+      // Legacy global token fallback for testing / backward compatibility
+      const firstProject = await prisma.project.findFirst({
+        orderBy: { updatedAt: "desc" },
+        select: { id: true },
+      });
+      if (firstProject) {
+        targetProjectId = firstProject.id;
+      }
+    }
+  }
+
+  if (!targetProjectId) {
     logger.warn("mcp_auth_failed", {
       correlationId,
       path: req.nextUrl.pathname,
     });
 
     return new NextResponse(
-      JSON.stringify({ error: "Unauthorized: Invalid or missing bearer credentials." }),
+      JSON.stringify({ error: "Unauthorized: Invalid, missing, or revoked project MCP credentials." }),
       {
         status: 401,
         headers: {
@@ -183,8 +216,14 @@ async function handleMcpRequest(req: NextRequest) {
     );
   }
 
+  logger.info("mcp_request_authenticated", {
+    correlationId,
+    projectId: targetProjectId,
+    credentialId,
+  });
+
   // 3. Connect fresh stateless McpServer to WebStandardStreamableHTTPServerTransport
-  const server = buildServer(requestId);
+  const server = buildServer(requestId, targetProjectId);
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
   });

@@ -40,11 +40,13 @@ export async function GET(
       );
     }
 
-    // 2. Exact read scoped strictly to user
-    const result = await getConversation(conversationId, session.user.id);
+    const queryProjectId = req.nextUrl.searchParams.get("projectId")?.trim();
+
+    // 2. Exact read scoped strictly to user (and project if specified)
+    const result = await getConversation(conversationId, session.user.id, queryProjectId);
 
     if (!result) {
-      // Non-enumerating 404: never reveals whether ID exists under another user
+      // Non-enumerating 404: never reveals whether ID exists under another user or project
       return errorResponse(
         ErrorCodes.NOT_FOUND,
         "Conversation not found.",
