@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Clock,
+  ListChecks,
 } from "lucide-react";
 import type { ComplianceDocumentListItem } from "@/lib/sanity/types";
 import { getDocumentReviewUrl } from "@/lib/sanity/studio-links";
@@ -105,10 +106,11 @@ export function DocumentRow({
               <button
                 type="button"
                 onClick={() => setReviewOpen(true)}
-                className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-slate-950 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800"
+                className="inline-flex h-8 items-center gap-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white px-3.5 text-xs font-semibold shadow-2xs hover:shadow-xs transition-all duration-150 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00c9d2] focus-visible:ring-offset-2"
                 aria-label={`Review extracted entries for ${item.title}`}
               >
-                Review entries
+                <ListChecks className="h-3.5 w-3.5 text-slate-300" />
+                <span>Review entries</span>
               </button>
             )}
             {item.fileUrl && (
@@ -116,7 +118,7 @@ export function DocumentRow({
                 href={item.fileUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-800 transition shadow-2xs focus-visible:ring-2 focus-visible:ring-[#00c9d2]"
+                className="inline-flex h-8 items-center gap-1.5 px-3 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-800 transition-all duration-150 shadow-2xs active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00c9d2] focus-visible:ring-offset-2"
                 aria-label={`Open PDF: ${item.title}`}
               >
                 <span>Open PDF</span>
@@ -127,7 +129,7 @@ export function DocumentRow({
             <details className="document-actions relative">
               <summary
                 aria-label={`More actions for ${item.title}`}
-                className="flex h-8 w-8 cursor-pointer list-none items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:text-slate-900 hover:bg-slate-50 transition shadow-2xs"
+                className="flex h-8 w-8 cursor-pointer list-none items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:text-slate-900 hover:bg-slate-50 transition-all duration-150 shadow-2xs active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00c9d2] focus-visible:ring-offset-2"
               >
                 <MoreHorizontal className="h-4 w-4" />
               </summary>
