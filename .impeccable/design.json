@@ -1,0 +1,114 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-03T17:14:56Z",
+  "title": "Design System: Veyd",
+  "extensions": {
+    "colorMeta": {
+      "ink": { "role": "primary", "displayName": "Dark Ink" },
+      "action-ink": { "role": "primary", "displayName": "Action Ink", "tonalRamp": ["#0f172a", "#1e293b", "#334155", "#475569", "#64748b", "#94a3b8", "#e2e8f0", "#f8fafc"] },
+      "action-hover": { "role": "primary", "displayName": "Action Hover" },
+      "paper": { "role": "neutral", "displayName": "White Paper" },
+      "desk": { "role": "neutral", "displayName": "Cool Slate Desk", "tonalRamp": ["#0f172a", "#1e293b", "#334155", "#475569", "#64748b", "#94a3b8", "#e2e8f0", "#f8fafc"] },
+      "surface-muted": { "role": "neutral", "displayName": "Muted Surface" },
+      "text-muted": { "role": "neutral", "displayName": "Muted Text" },
+      "border": { "role": "neutral", "displayName": "Slate Border" },
+      "border-strong": { "role": "neutral", "displayName": "Strong Slate Border" },
+      "cyan": { "role": "primary", "displayName": "Interaction Cyan" },
+      "cyan-hover": { "role": "primary", "displayName": "Cyan Hover" },
+      "cyan-light": { "role": "primary", "displayName": "Cyan Light" },
+      "reader-ink": { "role": "neutral", "displayName": "Reader Ink" },
+      "reader-link": { "role": "secondary", "displayName": "Reader Teal" },
+      "auth-blue": { "role": "secondary", "displayName": "Authentication Blue" },
+      "auth-blue-hover": { "role": "secondary", "displayName": "Authentication Blue Hover" }
+    },
+    "typographyMeta": {
+      "title": { "displayName": "Application Title", "purpose": "Bold application and project headings." },
+      "body": { "displayName": "Application Body", "purpose": "Forms and ordinary UI content; chat prose has its own larger reading rhythm." },
+      "label": { "displayName": "Application Label", "purpose": "Navigation and compact action labels." },
+      "reader-headline": { "displayName": "Reader Headline", "purpose": "Georgia headings inside handbook paper." },
+      "reader-body": { "displayName": "Reader Body", "purpose": "Arial handbook prose and lists." }
+    },
+    "shadows": [
+      { "name": "card", "value": "0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.08)", "purpose": "Shared card lift and document-card hover." },
+      { "name": "reader-paper", "value": "0 10px 30px rgba(15, 23, 42, 0.07), 0 2px 6px rgba(15, 23, 42, 0.03)", "purpose": "Handbook paper on its gray desk." },
+      { "name": "reader-toolbar", "value": "0 4px 12px rgba(15, 23, 42, 0.04)", "purpose": "Sticky reader toolbar." },
+      { "name": "reader-button", "value": "0 1px 2px rgba(0, 0, 0, 0.04)", "purpose": "Compact bordered reader actions." },
+      { "name": "citation-popup", "value": "0 8px 32px #17233326", "purpose": "Floating handbook source details." }
+    ],
+    "motion": [
+      { "name": "reader-control", "value": "all 0.15s ease", "purpose": "Reader button and floating-navigation states." },
+      { "name": "reader-progress", "value": "width 0.3s cubic-bezier(0.4, 0, 0.2, 1)", "purpose": "Handbook reading progress." },
+      { "name": "shimmer", "value": "1.8s cubic-bezier(0.4, 0, 0.2, 1) infinite", "purpose": "Existing loading shimmer; reduced-motion media query shortens animations." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "reader-floating-navigation", "value": "800px" },
+      { "name": "lg", "value": "1024px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Confirm Document Button", "kind": "button", "refersTo": "button-confirm",
+      "description": "Actual confirmation control from chat-file-ingestion.tsx.",
+      "html": "<button class=\"ds-confirm\">Confirm and add document</button>",
+      "css": ".ds-confirm { display:inline-flex; align-items:center; justify-content:center; gap:8px; background:#020617; color:#fff; border:0; border-radius:8px; padding:8px 16px; font:600 14px/20px var(--font-sans, sans-serif); cursor:pointer; } .ds-confirm:hover { background:#1e293b; } .ds-confirm:focus-visible { outline:2px solid var(--accent, #00c9d2); outline-offset:2px; box-shadow:0 0 0 2px #0891b2; } .ds-confirm:disabled { opacity:.5; }"
+    },
+    {
+      "name": "Attach PDF Button", "kind": "button", "refersTo": "button-outline",
+      "description": "Actual outlined attachment action from chat-file-ingestion.tsx; SVG expands its FilePlus2 icon.",
+      "html": "<button class=\"ds-attach\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4 22h14a2 2 0 0 0 2-2V7l-5-5H6a2 2 0 0 0-2 2v4\"/><path d=\"M14 2v6h6M3 15h6M6 12v6\"/></svg>Attach PDF</button>",
+      "css": ".ds-attach { display:inline-flex; align-items:center; gap:8px; border:1px solid #cbd5e1; border-radius:8px; background:#fff; color:#1e293b; padding:8px 12px; font:600 12px/16px var(--font-sans, sans-serif); cursor:pointer; } .ds-attach:hover { background:#f8fafc; } .ds-attach:focus-visible { outline:2px solid var(--accent, #00c9d2); outline-offset:2px; box-shadow:0 0 0 2px #0891b2; } .ds-attach:disabled { opacity:.5; }"
+    },
+    {
+      "name": "Chat Send Button", "kind": "button", "refersTo": "button-send",
+      "description": "Actual cyan square arrow action from app-shell.tsx.",
+      "html": "<button class=\"ds-send\" aria-label=\"Send follow-up query\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5 12h14m-7-7 7 7-7 7\"/></svg></button>",
+      "css": ".ds-send { display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; border:0; border-radius:12px; background:var(--accent, #00c9d2); color:var(--ink, #020618); box-shadow:0 1px 2px rgba(0,0,0,.05); cursor:pointer; transition:background-color .15s cubic-bezier(.4,0,.2,1); } .ds-send:hover { background:var(--accent-hover, #00b0b8); } .ds-send:focus-visible { outline:2px solid var(--accent, #00c9d2); outline-offset:2px; box-shadow:0 0 0 2px #020618; } .ds-send:disabled { opacity:.4; cursor:not-allowed; } @media(prefers-reduced-motion:reduce) { .ds-send { transition:none; } }"
+    },
+    {
+      "name": "Reader Button", "kind": "button", "refersTo": "button-reader",
+      "description": "The book-button primitive from reader.css.",
+      "html": "<button class=\"ds-reader-button\">Contents</button>",
+      "css": ".ds-reader-button { display:inline-flex; align-items:center; justify-content:center; gap:6px; min-height:36px; padding:7px 12px; border:1px solid #e2e8f0; border-radius:8px; background:#fff; color:#1e293b; font:500 12px Arial,sans-serif; box-shadow:0 1px 2px rgba(0,0,0,.04); cursor:pointer; transition:all .15s ease; } .ds-reader-button:hover:not(:disabled) { background:#f8fafc; border-color:#cbd5e1; color:#020618; } .ds-reader-button:focus-visible { outline:2px solid #00c9d2; outline-offset:2px; } .ds-reader-button:disabled { opacity:.45; cursor:not-allowed; } @media(prefers-reduced-motion:reduce) { .ds-reader-button { transition:none; } }"
+    },
+    {
+      "name": "Document Name Field", "kind": "input", "refersTo": "input-document",
+      "description": "Labeled document-name field from the chat import confirmation dialog.",
+      "html": "<div class=\"ds-field\"><label for=\"ds-document-name\">Document name</label><input id=\"ds-document-name\" value=\"Project reference\" /></div>",
+      "css": ".ds-field { color:#0f172a; font:14px/20px var(--font-sans, sans-serif); } .ds-field label { display:block; font-weight:500; margin-bottom:4px; } .ds-field input { width:calc(100% - 26px); border:1px solid #cbd5e1; border-radius:8px; padding:8px 12px; background:#fff; color:#0f172a; font:inherit; caret-color:#008f96; } .ds-field input:focus { outline:none; box-shadow:0 0 0 2px #0891b2; } .ds-field input:disabled { opacity:.6; }"
+    },
+    {
+      "name": "Project Navigation", "kind": "nav", "refersTo": "navigation-active",
+      "description": "Desktop project navigation rows from app-shell.tsx; mobile tab placement is documented in DESIGN.md.",
+      "html": "<nav class=\"ds-nav\" aria-label=\"Project Navigation\"><a href=\"#research\" aria-current=\"page\">Research Chat</a><a href=\"#documents\">Documents</a><a href=\"#handbook\">Handbook</a></nav>",
+      "css": ".ds-nav { display:grid; gap:4px; width:224px; font:500 12px/16px var(--font-sans, sans-serif); } .ds-nav a { display:flex; align-items:center; border-radius:12px; padding:8px 12px; color:#475569; text-decoration:none; transition:color .15s cubic-bezier(.4,0,.2,1),background-color .15s cubic-bezier(.4,0,.2,1); } .ds-nav a:hover { color:#020618; background:#f8fafc; } .ds-nav a[aria-current] { background:#020618; color:#fff; font-weight:600; box-shadow:0 1px 2px rgba(0,0,0,.05); } .ds-nav a:focus-visible { outline:2px solid var(--accent, #00c9d2); outline-offset:2px; } @media(prefers-reduced-motion:reduce) { .ds-nav a { transition:none; } }"
+    },
+    {
+      "name": "Ready Status Chip", "kind": "chip", "refersTo": "chip-ready",
+      "description": "Actual labeled Ready variant from document-row.tsx.",
+      "html": "<span class=\"ds-ready\"><span aria-hidden=\"true\"></span>Ready</span>",
+      "css": ".ds-ready { display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:9999px; border:1px solid #a7f3d0; background:#ecfdf5; color:#047857; font:600 11px var(--font-sans, sans-serif); } .ds-ready > span { width:6px; height:6px; border-radius:9999px; background:#10b981; animation:ds-ready-pulse 2s cubic-bezier(.4,0,.6,1) infinite; } @keyframes ds-ready-pulse { 50% { opacity:.5; } } @media(prefers-reduced-motion:reduce) { .ds-ready > span { animation:none; } }"
+    },
+    {
+      "name": "Document Card", "kind": "card", "refersTo": "card-document",
+      "description": "Document-row container and its title/metadata hierarchy; action and status primitives are represented separately.",
+      "html": "<article class=\"ds-document-card\"><h3>Project reference</h3><p><strong>12 pages</strong> · 240 KB</p></article>",
+      "css": ".ds-document-card { border:1px solid rgba(226,232,240,.9); border-radius:16px; background:#fff; padding:16px; box-shadow:0 1px rgba(0,0,0,.05); font-family:var(--font-sans, sans-serif); transition:all .15s cubic-bezier(.4,0,.2,1); } .ds-document-card:hover { border-color:#cbd5e1; box-shadow:0 1px 2px rgba(16,24,40,.06),0 1px 3px rgba(16,24,40,.08); } .ds-document-card h3 { margin:0; color:#0f172a; font-size:14px; font-weight:700; line-height:1.375; overflow-wrap:anywhere; } .ds-document-card p { margin:6px 0 0; font-size:12px; line-height:16px; color:#64748b; } .ds-document-card strong { color:#334155; font-weight:500; } @media(min-width:640px) { .ds-document-card { padding:20px; } } @media(prefers-reduced-motion:reduce) { .ds-document-card { transition:none; } }"
+    },
+    {
+      "name": "Handbook Paper", "kind": "custom", "refersTo": "paper-reader",
+      "description": "The reader's paper, desk, heading and prose; this is a shortened content sample of the implemented reading container.",
+      "html": "<div class=\"ds-book-desk\"><article class=\"ds-book-paper\"><div class=\"ds-book-content\"><h2>Project handbook</h2><p>Read the project knowledge with its source references.</p></div><footer>1</footer></article></div>",
+      "css": ".ds-book-desk { display:flex; justify-content:center; background:#f1f5f9; border:1px solid #e2e8f0; border-radius:16px; padding:32px 16px 40px; } .ds-book-paper { display:flex; flex-direction:column; width:min(100%,640px); min-height:740px; background:#fff; color:#172333; border:1px solid #e2e8f0; border-radius:12px; box-shadow:0 10px 30px rgba(15,23,42,.07),0 2px 6px rgba(15,23,42,.03); container-type:inline-size; font-family:Arial,sans-serif; } .ds-book-content { flex:1; padding:44px 48px 56px; } .ds-book-content h2 { font:400 clamp(24px,6cqw,34px)/1.15 Georgia,serif; margin:0 0 28px; overflow-wrap:anywhere; } .ds-book-content p { font-size:15px; line-height:1.75; overflow-wrap:anywhere; } .ds-book-paper footer { padding:14px 0 16px; text-align:center; font-size:11px; font-weight:500; color:#94a3b8; border-top:1px solid #f1f5f9; } @media(max-width:640px) { .ds-book-desk { padding:12px 6px; border-radius:4px; } .ds-book-content { padding:26px 24px 36px; } .ds-book-content h2 { margin-bottom:20px; } .ds-book-content p { font-size:14px; line-height:1.65; } }"
+    }
+  ],
+  "narrative": {
+    "northStar": "handbook aesthetic",
+    "overview": "The existing application uses compact sans-serif controls, white panels, cool slate backgrounds and dark text. Cyan marks interaction and focus. The handbook reader adds white paper on a gray desk, serif chapter headings and generous reading space.\n\nThis record describes the incumbent implementation in `src/app/globals.css`, `tailwind.config.ts`, `src/components/` and `src/lib/handbook/reader.css`. Presentation geometry and DEV × Sanity co-branding belong to the `/demo` surface brief.",
+    "keyCharacteristics": ["White and slate surfaces with dark action controls.", "Cyan interaction accents and visible keyboard focus.", "Compact application typography beside a serif handbook hierarchy.", "Borders and restrained shadows distinguish panels, paper and overlays."],
+    "rules": [],
+    "dos": ["Do reuse the existing white/slate/dark/cyan roles for application controls.", "Do keep the reader's Georgia headings and Arial prose in their reading context.", "Do preserve visible focus, disabled states and text labels for status.", "Do retain the implemented wrapping and stacked mobile navigation patterns."],
+    "donts": ["Don't apply `/demo` slide geometry or challenge branding to other application surfaces.", "Don't replace existing application controls with the presentation's larger type scale.", "Don't treat an extracted theme token as evidence that every screen supports that theme."]
+  }
+}
