@@ -129,6 +129,14 @@ Still required before acceptance: live authenticated two-project isolation, sour
 
 ## Change inventory
 
+### Handbook drafting repair (2026-10-04)
+
+Final authenticated browser verification returned `ready` with 35 pages and 15 citations, and the existing reader loaded with zero `/handbook/generate` requests. Application type and isolated production builds passed; Studio build also passed.
+
+The configured model returned a schema-invalid draft for a project with five published reviewed entries: figure steps exceeded 70 characters and one block contained more than five list items. The drafting instructions now explicitly state the existing string and array bounds, and tell the model to split long explanations/lists without dropping evidence. Local validation, citation coverage, source isolation, the 90-second timeout and zero automatic model retries remain unchanged. Schema-generation failures return a safe `UPSTREAM_FAILURE` message; server diagnostics contain only validation paths/codes, never generated text. Generator version: `2.0.5`; no model, environment or dependency change.
+
+An in-memory live drafting check produced 23 pages from all five sources after the prompt correction. The owner-checked generation service subsequently saved a 19-page edition with all five citations and generator `2.0.5`; a fresh read returned `ready`, and a repeat generation call reused it. During live review the project's published corpus grew to 15 entries; its old edition correctly became stale, and regeneration saved a 35-page edition with all 15 citations. This verifies structural validation, source-key coverage, source-change invalidation and persistence, not independent factual verification of the AI explanations. The verification agent did not change published source records or the configured model.
+
 Comparison base: `e1578b4d40c4b72a854a7a5a8552a07e2e59fbdd`. The implementation and this checkpoint are committed together; resolve the ending revision with the command above and use `git diff --name-status <baseline> <implementation-revision>` to reproduce the added/modified inventory. No deployment is claimed.
 
 - **Added:** this milestone, `.agents/skills/project-reader-ui/SKILL.md`; project conversation-list and `handbook.html` API routes; `chat-history`, `chat-markdown`, `document-row`, `handbook-page`, `project-book-view` and `ui/skeleton` components; shared `client-api.ts`, `query-keys.ts` and `use-app-queries.ts`; handbook `generator.ts`, `html.ts`, `reader.css`, `offline-reader.js`; licensed Noto Sans font assets.

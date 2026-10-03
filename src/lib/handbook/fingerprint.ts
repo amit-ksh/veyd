@@ -5,7 +5,7 @@ import { logger } from "@/lib/logger";
 import { defineQuery } from "groq";
 
 export const HANDBOOK_SCHEMA_VERSION = 2;
-export const HANDBOOK_GENERATOR_VERSION = "2.0.4";
+export const HANDBOOK_GENERATOR_VERSION = "2.0.5";
 
 export class RuleSourceMismatchError extends Error {
   constructor(message: string) {

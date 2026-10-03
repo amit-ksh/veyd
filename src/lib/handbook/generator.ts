@@ -1,7 +1,13 @@
-import { generateObject, jsonSchema, zodSchema } from "ai";
+import {
+  generateObject,
+  jsonSchema,
+  NoObjectGeneratedError,
+  zodSchema,
+} from "ai";
 import { getGeminiModel } from "@/lib/chat/provider";
 import { z } from "zod";
 import { AppError, ErrorCodes } from "@/lib/errors";
+import { logger } from "@/lib/logger";
 import { handbookBlockSchema, handbookFigureSchema } from "./schema";
 import { HANDBOOK_GENERATOR_VERSION } from "./fingerprint";
 import type {
@@ -69,7 +75,15 @@ They are illustrative diagrams, NOT screenshots, actual outputs or figures copie
 One main idea per page. Use short blocks of about 40-60 words, and break long discussions into consecutive pages.
 Each block becomes its own reading page so desktop, mobile and PDF stay aligned. Do not rely on several blocks fitting together.
 Use list items only for short steps or checks. Keep labels brief. Every supplied sourceKey must be represented at least once,
-including review-required sources, or generation will be rejected. Do not restate every source as a disconnected document chapter.`;
+including review-required sources, or generation will be rejected. Do not restate every source as a disconnected document chapter.
+OUTPUT LIMITS (characters, not words): title <=160; purpose <=240; scope <=300. At most 12 limitations, each <=400.
+Use 1-16 chapters, each with a title <=120 and 1-12 pages. Each page title <=120, with 1-4 blocks and 0-1 figures.
+Each block: label <=80; text <=650; 0-5 list items, each <=180; at most 8 sourceKeys. Include every required field,
+using an empty label, text or items array only when the block's other content is nonempty. Do not use null for string/array fields.
+Each optional figure: title <=100; caption <=240; 2-6 steps, EACH <=70 characters; 1-8 sourceKeys.
+Make figure steps short labels, not full sentences. Put their longer explanations in cited blocks on separate pages.
+Split lists of more than 5 items into consecutive cited blocks/pages without dropping or changing requirements.
+Check these limits before returning JSON. Preserve all source coverage and evidence labels; do not omit evidence to fit.`;
 
 const info = (text: string): HandbookBlock => ({
   kind: "paragraph",
@@ -138,6 +152,30 @@ export async function draftHandbookReader(
     maxRetries: 0,
     abortSignal: AbortSignal.timeout(90_000),
   }).catch((error: unknown) => {
+    if (NoObjectGeneratedError.isInstance(error)) {
+      // Log structural diagnostics only, never the generated text or provider response.
+      let cause: unknown = error.cause;
+      let issues: Array<{ path: string; code: string }> = [];
+      for (let depth = 0; depth < 5 && cause instanceof Error; depth++) {
+        if (cause instanceof z.ZodError) {
+          issues = cause.issues.slice(0, 20).map((issue) => ({
+            path: issue.path.join("."),
+            code: issue.code,
+          }));
+          break;
+        }
+        cause = (cause as Error & { cause?: unknown }).cause;
+      }
+      logger.warn("handbook_draft_schema_invalid", {
+        projectId: snapshot.projectId,
+        issues,
+      });
+      throw new AppError(
+        "The AI draft did not fit the handbook format. No handbook was saved. Retry generation; your published sources are unchanged.",
+        ErrorCodes.UPSTREAM_FAILURE,
+        502,
+      );
+    }
     if (
       error instanceof Error &&
       error.message.includes("no longer available to new users")
