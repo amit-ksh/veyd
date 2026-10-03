@@ -6,6 +6,7 @@ import { WarningOutlineIcon } from "@sanity/icons/WarningOutline";
 import { ArchiveIcon } from "@sanity/icons/Archive";
 import { FolderIcon } from "@sanity/icons/Folder";
 import { CommentIcon } from "@sanity/icons/Comment";
+import { RULE_REVIEW_PANE_ID } from "../src/lib/sanity/studio-links";
 
 /**
  * Milestone 4 dedicated Studio structure:
@@ -73,16 +74,34 @@ export const structure: StructureResolver = (S) =>
       // 2. Rules Awaiting Review (Drafts)
       // ----------------------------------------------------------------------
       S.listItem()
+        .id(RULE_REVIEW_PANE_ID)
         .title("Rules Awaiting Review")
         .icon(ClockIcon)
-        .child(
-          S.documentList()
-            .title("Rules Awaiting Review")
-            .filter(
-              '_type == "complianceRule" && (_id in path("drafts.**") || !defined(lastReviewedAt))'
+        .child((_itemId, { params }) => {
+          const isDocumentReview =
+            params.documentId !== undefined || params.projectId !== undefined;
+          const pendingFilter =
+            '_type == "complianceRule" && (_id in path("drafts.**") || !defined(lastReviewedAt))';
+
+          return S.documentList()
+            .id(RULE_REVIEW_PANE_ID)
+            .schemaType("complianceRule")
+            .apiVersion("2026-03-01")
+            .title(
+              isDocumentReview ? "Document entries awaiting review" : "Rules Awaiting Review"
             )
-            .defaultOrdering([{ field: "_createdAt", direction: "desc" }])
-        ),
+            .filter(
+              isDocumentReview
+                ? `${pendingFilter} && $documentId != "" && $projectId != "" && projectId == $projectId && sourceDocument._ref == $documentId && sourceDocument->projectId == $projectId`
+                : pendingFilter
+            )
+            .params(
+              isDocumentReview
+                ? { documentId: params.documentId || "", projectId: params.projectId || "" }
+                : {}
+            )
+            .defaultOrdering([{ field: "_createdAt", direction: "desc" }]);
+        }),
 
       // ----------------------------------------------------------------------
       // 3. Published Rules

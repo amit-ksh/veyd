@@ -10,6 +10,7 @@ import {
   Clock,
 } from "lucide-react";
 import type { ComplianceDocumentListItem } from "@/lib/sanity/types";
+import { getDocumentReviewUrl } from "@/lib/sanity/studio-links";
 import { CircularLoader } from "@/components/ui/circular-loader";
 
 export function DocumentRow({
@@ -117,9 +118,10 @@ export function DocumentRow({
             </summary>
             <div className="absolute right-0 z-30 mt-1.5 w-52 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl animate-in fade-in zoom-in-95 duration-100">
               <a
-                href="https://sanity-zeta-six.vercel.app/"
+                href={getDocumentReviewUrl(item._id, item.projectId)}
                 target="_blank"
                 rel="noopener noreferrer"
+                aria-label={`Review extracted entries for ${item.title} in Studio`}
                 className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 transition"
               >
                 <ExternalLink className="h-3.5 w-3.5 text-slate-500" />
