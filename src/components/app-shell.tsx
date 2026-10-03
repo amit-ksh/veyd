@@ -32,6 +32,7 @@ import {
   Plus,
   Trash2,
   Loader2,
+  Copy,
 } from "lucide-react";
 import { useChat } from "@ai-sdk/react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -42,6 +43,8 @@ import { ProjectMcpModal } from "@/components/project-mcp-modal";
 import { RemoveDocumentModal } from "@/components/remove-document-modal";
 import { HandbookView } from "@/components/handbook-view";
 import { Skeleton, ContentSkeleton } from "@/components/ui/skeleton";
+import { AppSkeleton } from "@/components/ui/app-skeleton";
+import { CircularLoader, ProcessingOverlay } from "@/components/ui/circular-loader";
 import { ChatHistory } from "@/components/chat-history";
 import { DocumentRow } from "@/components/document-row";
 import { ChatMarkdown } from "@/components/chat-markdown";
@@ -115,11 +118,23 @@ export function AppShell({
     initialTab,
   );
   const [searchQuery, setSearchQuery] = useState("");
+  const [docSearch, setDocSearch] = useState("");
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [documentToRemove, setDocumentToRemove] =
     useState<ComplianceDocumentListItem | null>(null);
   const [removalSuccessMessage, setRemovalSuccessMessage] = useState<
     string | null
   >(null);
+
+  const handleCopyMessage = async (msgId: string, text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedMessageId(msgId);
+      setTimeout(() => setCopiedMessageId(null), 2000);
+    } catch {
+      /* ignore */
+    }
+  };
 
   // Projects state
   const [activeProjectId, setActiveProjectId] = useState<string | null>(
@@ -735,16 +750,7 @@ export function AppShell({
 
   // Auth gate loading
   if (isPending) {
-    return (
-      <div className="min-h-screen bg-[#f8fafc] flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3 text-slate-500">
-          <Skeleton className="h-6 w-48" />
-          <span className="text-sm font-medium text-slate-700">
-            Loading workspace…
-          </span>
-        </div>
-      </div>
-    );
+    return <AppSkeleton activeTab={activeTab} label="Loading workspace…" />;
   }
 
   // Auth gate: Unauthenticated users see AuthForm
@@ -804,6 +810,10 @@ export function AppShell({
         </section>
       </main>
     );
+  }
+
+  if (loadingProjects && projects.length === 0) {
+    return <AppSkeleton activeTab={activeTab} label="Loading your projects…" />;
   }
 
   // No projects screen state (Prompt to create first project)
@@ -1285,10 +1295,12 @@ export function AppShell({
                   className="py-24 flex flex-col items-center justify-center gap-3 text-slate-500"
                   aria-live="polite"
                 >
-                  <ContentSkeleton label="Restoring conversation" />
-                  <span className="text-sm font-medium text-slate-700">
-                    Restoring conversation…
-                  </span>
+                  <CircularLoader
+                    size="lg"
+                    variant="brand"
+                    label="Restoring conversation…"
+                    sublabel="Loading verified messages and citation origins"
+                  />
                 </div>
               ) : conversationNotFound || conversationLoadError ? (
                 <div
@@ -1334,23 +1346,22 @@ export function AppShell({
                 </div>
               ) : messages.length === 0 ? (
                 /* EMPTY STATE: Hero, prompt input, quick starters, workflow info */
-                <div className="mt-8 sm:mt-12 space-y-8">
-                  <div className="text-center space-y-2">
-                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#00c9d2]/10 border border-[#00c9d2]/30 text-[#020618] text-xs font-semibold mb-1">
+                <div className="mt-8 sm:mt-12 space-y-8 animate-in fade-in duration-300">
+                  <div className="text-center space-y-2.5">
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#00c9d2]/10 border border-[#00c9d2]/30 text-[#008f96] text-xs font-semibold mb-1 shadow-2xs">
                       <Sparkles className="w-3.5 h-3.5 text-[#00c9d2]" />
                       <span>{activeProject?.name || "Project"} Copilot</span>
                     </div>
                     <h1 className="text-2xl sm:text-4xl font-extrabold tracking-tight text-[#020618]">
                       What would you like to research today?
                     </h1>
-                    <p className="text-sm text-slate-600 max-w-lg mx-auto leading-relaxed">
-                      Ask questions about <strong>{activeProject?.name}</strong>{" "}
-                      and follow the sources.
+                    <p className="text-xs sm:text-sm text-slate-500 max-w-lg mx-auto leading-relaxed">
+                      Ask questions about <strong className="text-slate-800">{activeProject?.name}</strong> and get answers verified against human-reviewed sources.
                     </p>
                   </div>
 
                   {/* Primary Prompt Composer Box */}
-                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-2 focus-within:ring-2 focus-within:ring-[#00c9d2] focus-within:border-transparent transition-all">
+                  <div className="bg-white rounded-2xl border border-slate-200/90 shadow-card p-2.5 focus-within:ring-2 focus-within:ring-[#00c9d2] focus-within:border-transparent transition-all">
                     <form
                       onSubmit={(e) => {
                         e.preventDefault();
@@ -1358,8 +1369,8 @@ export function AppShell({
                       }}
                       className="flex items-center gap-2"
                     >
-                      <div className="pl-3 text-slate-400">
-                        <Search className="w-5 h-5" />
+                      <div className="pl-2 text-slate-400">
+                        <Search className="w-4 h-4" />
                       </div>
                       <label htmlFor="hero-prompt-input" className="sr-only">
                         Research question
@@ -1372,21 +1383,28 @@ export function AppShell({
                         disabled={chatImportBusy}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         placeholder="Ask about your documents or research a topic…"
-                        className="flex-1 py-3 text-sm bg-transparent outline-none placeholder:text-slate-400 text-[#020618]"
+                        className="flex-1 py-2 text-sm bg-transparent outline-none placeholder:text-slate-400 text-[#020618]"
                       />
+                      {searchQuery && (
+                        <button
+                          type="button"
+                          onClick={() => setSearchQuery("")}
+                          className="p-1 rounded-md text-slate-400 hover:text-slate-600 transition"
+                          title="Clear input"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                       <button
                         type="submit"
                         disabled={
                           !searchQuery.trim() || isStreaming || chatImportBusy
                         }
                         aria-label="Send research question"
-                        className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-[#00c9d2] text-[#020618] font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#00b0b8] transition-colors shadow-xs focus-visible:ring-2 focus-visible:ring-[#020618]"
+                        className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-[#00c9d2] hover:bg-[#00b0b8] text-[#020618] font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-xs focus-visible:ring-2 focus-visible:ring-[#020618]"
                       >
                         {isStreaming ? (
-                          <Loader2
-                            aria-hidden
-                            className="w-4 h-4 animate-spin"
-                          />
+                          <CircularLoader size="xs" variant="primary" />
                         ) : (
                           <ArrowRight className="w-4 h-4" />
                         )}
@@ -1394,28 +1412,55 @@ export function AppShell({
                     </form>
                   </div>
 
-                  {/* Suggestions Starter Pills */}
-                  <div className="flex flex-wrap items-center justify-center gap-2 text-xs">
-                    <span className="text-slate-500 font-medium">
-                      Suggestions:
-                    </span>
+                  {/* Suggestions Starter Cards */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-xl mx-auto pt-2">
                     {[
-                      "Summarize the project’s published sources",
-                      "Explain the key terms",
-                      "Compare the main approaches",
-                      "What needs further research?",
-                    ].map((suggestion) => (
+                      {
+                        icon: FileText,
+                        title: "Summarize Sources",
+                        desc: "Summarize the project’s published sources",
+                        prompt: "Summarize the project’s published sources",
+                      },
+                      {
+                        icon: BookOpen,
+                        title: "Explain Key Terms",
+                        desc: "Explain the essential terminology and concepts",
+                        prompt: "Explain the key terms",
+                      },
+                      {
+                        icon: Compass,
+                        title: "Compare Approaches",
+                        desc: "Compare the main compliance approaches",
+                        prompt: "Compare the main approaches",
+                      },
+                      {
+                        icon: ShieldCheck,
+                        title: "Knowledge Gaps",
+                        desc: "Identify what needs further research",
+                        prompt: "What needs further research?",
+                      },
+                    ].map((item) => (
                       <button
-                        key={suggestion}
+                        key={item.title}
                         type="button"
                         disabled={chatImportBusy}
                         onClick={() => {
-                          setSearchQuery(suggestion);
-                          handleSendPrompt(suggestion);
+                          setSearchQuery(item.prompt);
+                          handleSendPrompt(item.prompt);
                         }}
-                        className="px-3 py-1.5 bg-white border border-slate-200 hover:border-[#00c9d2] rounded-full text-slate-600 hover:text-[#020618] transition shadow-2xs"
+                        className="group flex items-start gap-3 p-3.5 bg-white border border-slate-200/90 hover:border-[#00c9d2] rounded-xl text-left transition hover:shadow-card hover:-translate-y-0.5 shadow-2xs"
                       >
-                        {suggestion}
+                        <div className="w-8 h-8 rounded-lg bg-slate-50 group-hover:bg-[#00c9d2]/15 text-slate-500 group-hover:text-[#008f96] flex items-center justify-center shrink-0 transition-colors">
+                          <item.icon className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-xs font-semibold text-slate-900 group-hover:text-[#008f96] transition-colors">
+                            {item.title}
+                          </div>
+                          <div className="text-[11px] text-slate-500 truncate">
+                            {item.desc}
+                          </div>
+                        </div>
                       </button>
                     ))}
                   </div>
@@ -1456,37 +1501,70 @@ export function AppShell({
                         (m as any).parts,
                       );
                       const chatFiles = messageFiles(m.parts);
+                      const isCopied = copiedMessageId === (m.id || String(index));
 
                       return (
                         <div
                           key={m.id || index}
-                          className={`flex gap-3 ${isUser ? "justify-end" : "justify-start"}`}
+                          className={`flex gap-3 ${isUser ? "justify-end" : "justify-start"} animate-in fade-in duration-200`}
                         >
                           <div
                             className={`space-y-2 min-w-0 ${isUser ? "max-w-[90%] sm:max-w-[80%]" : "w-full"}`}
                           >
                             <div
-                              className={`p-4 rounded-2xl text-xs sm:text-sm leading-relaxed ${
+                              className={`p-4 sm:p-5 rounded-2xl text-xs sm:text-sm leading-relaxed transition-all ${
                                 isUser
-                                  ? "bg-[#020618] text-white rounded-br-xs shadow-xs"
-                                  : "bg-white border border-slate-200 text-[#020618] rounded-xl"
+                                  ? "bg-[#020618] text-white rounded-tr-xs shadow-card"
+                                  : "bg-white border border-slate-200/90 text-[#020618] rounded-tl-xs shadow-2xs"
                               }`}
                             >
-                              <p
-                                className={`mb-3 text-xs font-semibold ${isUser ? "text-slate-300" : "text-slate-500"}`}
-                              >
-                                {isUser ? "You" : "Veyd"}
-                              </p>
+                              <div className="flex items-center justify-between mb-3 border-b border-slate-100/10 pb-2">
+                                <div className="flex items-center gap-2">
+                                  {isUser ? (
+                                    <div className="w-5 h-5 rounded-full bg-slate-800 text-slate-300 flex items-center justify-center text-[10px] font-bold">
+                                      {userInitial}
+                                    </div>
+                                  ) : (
+                                    <div className="w-5 h-5 rounded-md bg-[#00c9d2]/15 text-[#008f96] flex items-center justify-center">
+                                      <Sparkles className="w-3 h-3 text-[#00c9d2]" />
+                                    </div>
+                                  )}
+                                  <span
+                                    className={`text-xs font-semibold ${isUser ? "text-slate-300" : "text-slate-700"}`}
+                                  >
+                                    {isUser ? "You" : "Veyd Copilot"}
+                                  </span>
+                                </div>
+
+                                {textContent && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCopyMessage(m.id || String(index), textContent)}
+                                    className={`flex items-center gap-1 text-[11px] p-1 rounded-md transition ${
+                                      isUser ? "text-slate-400 hover:text-white hover:bg-slate-800" : "text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+                                    }`}
+                                    title="Copy message"
+                                  >
+                                    {isCopied ? (
+                                      <>
+                                        <Check className="w-3 h-3 text-emerald-400" />
+                                        <span className="text-emerald-400 text-[10px]">Copied</span>
+                                      </>
+                                    ) : (
+                                      <Copy className="w-3 h-3" />
+                                    )}
+                                  </button>
+                                )}
+                              </div>
                               {textContent ? (
                                 <ChatMarkdown
                                   text={textContent}
                                   user={isUser}
                                 />
                               ) : (
-                                <ContentSkeleton
-                                  label="Preparing response"
-                                  rows={1}
-                                />
+                                <div className="py-2">
+                                  <CircularLoader size="sm" variant="brand" label="Synthesizing verified response…" />
+                                </div>
                               )}
                             </div>
 
@@ -1523,10 +1601,10 @@ export function AppShell({
                                     return (
                                       <div
                                         key={cIdx}
-                                        className={`flex items-start justify-between gap-2 p-2 rounded-lg border text-[11px] transition-colors ${
+                                        className={`flex items-start justify-between gap-2 p-2.5 rounded-lg border text-[11px] transition-colors ${
                                           isRemoved
                                             ? "bg-slate-50/80 border-slate-200/60"
-                                            : "bg-white border-slate-100 shadow-2xs"
+                                            : "bg-white border-slate-200/70 shadow-2xs hover:border-slate-300"
                                         }`}
                                       >
                                         <div className="min-w-0 space-y-0.5">
@@ -1535,7 +1613,7 @@ export function AppShell({
                                               className={`font-semibold truncate ${
                                                 isRemoved
                                                   ? "text-slate-600"
-                                                  : "text-slate-800"
+                                                  : "text-slate-900"
                                               }`}
                                             >
                                               {displayTitle}
@@ -1567,7 +1645,7 @@ export function AppShell({
                                             href={c.url}
                                             target="_blank"
                                             rel="noopener noreferrer"
-                                            className="text-[#008f96] hover:underline flex items-center gap-1 shrink-0 font-medium"
+                                            className="text-[#008f96] hover:underline flex items-center gap-1 shrink-0 font-medium ml-2"
                                           >
                                             <span>Source</span>
                                             <ExternalLink className="w-3 h-3" />
@@ -1588,11 +1666,11 @@ export function AppShell({
                   {/* Live Activity Announcement */}
                   {isStreaming && (
                     <div
-                      className="flex items-center gap-2 text-xs text-slate-500 bg-white border border-slate-200 rounded-xl p-3 shadow-2xs"
+                      className="flex items-center gap-2.5 text-xs text-slate-600 bg-white border border-slate-200 rounded-xl p-3 shadow-2xs animate-in fade-in"
                       aria-live="polite"
                     >
-                      <Skeleton className="h-3 w-20" />
-                      <span>{getToolActivityLabel()}</span>
+                      <CircularLoader size="xs" variant="brand" />
+                      <span className="font-medium">{getToolActivityLabel()}</span>
                     </div>
                   )}
 
@@ -1644,8 +1722,8 @@ export function AppShell({
                   )}
 
                   {/* Follow-up Prompt Input Bar */}
-                  <div className="sticky bottom-4 pt-2">
-                    <div className="bg-white rounded-2xl border border-slate-200 shadow-md p-2 focus-within:ring-2 focus-within:ring-[#00c9d2] focus-within:border-transparent transition-all">
+                  <div className="sticky bottom-4 pt-2 z-20">
+                    <div className="glass-panel rounded-2xl shadow-lg p-2 focus-within:ring-2 focus-within:ring-[#00c9d2] focus-within:border-transparent transition-all">
                       <form
                         onSubmit={(e) => {
                           e.preventDefault();
@@ -1668,23 +1746,28 @@ export function AppShell({
                           placeholder="Ask a follow-up or research another topic…"
                           className="flex-1 py-2 pl-3 text-sm bg-transparent outline-none placeholder:text-slate-400 text-[#020618] disabled:opacity-50"
                         />
-                        <button
-                          type="submit"
-                          disabled={
-                            !searchQuery.trim() || isStreaming || chatImportBusy
-                          }
-                          aria-label="Send follow-up query"
-                          className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-[#00c9d2] text-[#020618] font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#00b0b8] transition-colors shadow-xs focus-visible:ring-2 focus-visible:ring-[#020618]"
-                        >
-                          {isStreaming ? (
-                            <Loader2
-                              aria-hidden
-                              className="w-4 h-4 animate-spin"
-                            />
-                          ) : (
+                        {isStreaming ? (
+                          <button
+                            type="button"
+                            onClick={() => stop()}
+                            aria-label="Stop generation"
+                            className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold transition-colors shadow-2xs border border-rose-200"
+                            title="Stop response"
+                          >
+                            <StopCircle className="w-4 h-4" />
+                          </button>
+                        ) : (
+                          <button
+                            type="submit"
+                            disabled={
+                              !searchQuery.trim() || chatImportBusy
+                            }
+                            aria-label="Send follow-up query"
+                            className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-[#00c9d2] hover:bg-[#00b0b8] text-[#020618] font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-xs focus-visible:ring-2 focus-visible:ring-[#020618]"
+                          >
                             <ArrowRight className="w-4 h-4" />
-                          )}
-                        </button>
+                          </button>
+                        )}
                       </form>
                     </div>
                   </div>
@@ -1706,26 +1789,26 @@ export function AppShell({
             /* ========================================================================= */
             /* DOCUMENTS VIEW                                                           */
             /* ========================================================================= */
-            <div className="max-w-4xl mx-auto space-y-8">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+            <div className="max-w-4xl mx-auto space-y-6">
+              {/* Header & Stats Bar */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-slate-200">
                 <div>
-                  <h1 className="text-xl sm:text-2xl font-bold text-[#020618]">
-                    Documents
+                  <h1 className="text-xl sm:text-2xl font-bold text-[#020618] tracking-tight">
+                    Project Documents
                   </h1>
-                  <p className="text-xs text-slate-600 mt-0.5">
-                    Review the documents in{" "}
-                    <strong>{activeProject?.name}</strong>.
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Review and manage compliance sources bound to <strong>{activeProject?.name}</strong>.
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={fetchDocuments}
                   disabled={loadingDocs}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 transition focus-visible:ring-2 focus-visible:ring-[#00c9d2]"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 transition shadow-2xs focus-visible:ring-2 focus-visible:ring-[#00c9d2]"
                   aria-label="Refresh documents list"
                 >
                   {loadingDocs ? (
-                    <Loader2 aria-hidden className="w-3.5 h-3.5 animate-spin" />
+                    <CircularLoader size="xs" variant="primary" />
                   ) : (
                     <RefreshCw className="w-3.5 h-3.5" />
                   )}
@@ -1733,8 +1816,47 @@ export function AppShell({
                 </button>
               </div>
 
-              {/* Interactive Upload Form */}
-              <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-2xs space-y-5">
+              {/* Metrics Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs">
+                  <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Documents</div>
+                  <div className="text-xl font-bold text-slate-900 mt-1">{documents.length}</div>
+                </div>
+                <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs">
+                  <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Ready</div>
+                  <div className="text-xl font-bold text-emerald-600 mt-1">
+                    {documents.filter((d) => d.processingStatus === "ready").length}
+                  </div>
+                </div>
+                <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs">
+                  <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Extracted Rules</div>
+                  <div className="text-xl font-bold text-[#008f96] mt-1">
+                    {documents.reduce((acc, d) => acc + (d.extractedRuleCount || 0), 0)}
+                  </div>
+                </div>
+                <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs">
+                  <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Published Rules</div>
+                  <div className="text-xl font-bold text-indigo-600 mt-1">
+                    {documents.reduce((acc, d) => acc + (d.publishedRuleCount || 0), 0)}
+                  </div>
+                </div>
+              </div>
+
+              {/* Interactive Upload Form with Processing Overlay */}
+              <div className="relative bg-white rounded-2xl border border-slate-200/90 p-5 sm:p-6 shadow-2xs space-y-4 overflow-hidden">
+                {uploadStatus === "uploading" && (
+                  <ProcessingOverlay
+                    label="Uploading PDF to secure storage…"
+                    sublabel="Preparing file for compliance analysis"
+                  />
+                )}
+                {uploadStatus === "extracting" && (
+                  <ProcessingOverlay
+                    label="Extracting compliance rules…"
+                    sublabel="Gemini is analyzing document clauses and generating rule drafts"
+                  />
+                )}
+
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
                     <h2 className="text-sm font-bold text-[#020618] flex items-center gap-2">
@@ -1742,8 +1864,7 @@ export function AppShell({
                       <span>Add a document</span>
                     </h2>
                     <p className="text-xs text-slate-500">
-                      Max 10 MB &bull; Up to 100 pages &bull; Bound to{" "}
-                      {activeProject?.name}
+                      PDF up to 10 MB &bull; Up to 100 pages &bull; Bound to {activeProject?.name}
                     </p>
                   </div>
                 </div>
@@ -1762,12 +1883,12 @@ export function AppShell({
                       handleSelectFile(e.dataTransfer.files[0]);
                     }
                   }}
-                  className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-colors ${
+                  className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all ${
                     isDragOver
-                      ? "border-[#00c9d2] bg-[#00c9d2]/5"
+                      ? "border-[#00c9d2] bg-[#00c9d2]/5 scale-[0.99]"
                       : uploadFile
                         ? "border-emerald-300 bg-emerald-50/30"
-                        : "border-slate-200 hover:border-slate-300 bg-slate-50/50"
+                        : "border-slate-200 hover:border-slate-300 bg-slate-50/50 hover:bg-slate-50"
                   }`}
                   onClick={() => fileInputRef.current?.click()}
                 >
@@ -1791,20 +1912,19 @@ export function AppShell({
                         {uploadFile.name}
                       </div>
                       <div className="text-[11px] text-slate-500">
-                        {formatBytes(uploadFile.size)} &bull; Click or drag to
-                        replace
+                        {formatBytes(uploadFile.size)} &bull; Click or drag to replace
                       </div>
                     </div>
                   ) : (
                     <div className="flex flex-col items-center gap-2 text-slate-500">
-                      <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
+                      <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400">
                         <Upload className="w-5 h-5" />
                       </div>
                       <div className="text-xs font-semibold text-slate-700">
                         Choose a PDF or drop it here
                       </div>
                       <div className="text-[11px] text-slate-400">
-                        PDF up to 10 MB
+                        Max 10 MB per file
                       </div>
                     </div>
                   )}
@@ -1813,23 +1933,21 @@ export function AppShell({
                 {/* Metadata Fields & Submit Button */}
                 <form onSubmit={handleUploadSubmit} className="space-y-4">
                   <div>
-                    <div className="space-y-1">
-                      <label
-                        htmlFor="doc-title-input"
-                        className="text-xs font-semibold text-slate-700"
-                      >
-                        Document name <span className="text-rose-500">*</span>
-                      </label>
-                      <input
-                        id="doc-title-input"
-                        type="text"
-                        value={docTitle}
-                        onChange={(e) => setDocTitle(e.target.value)}
-                        placeholder="Name this document"
-                        maxLength={200}
-                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-[#020618] placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#00c9d2]"
-                      />
-                    </div>
+                    <label
+                      htmlFor="doc-title-input"
+                      className="text-xs font-semibold text-slate-700 block mb-1"
+                    >
+                      Document name <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      id="doc-title-input"
+                      type="text"
+                      value={docTitle}
+                      onChange={(e) => setDocTitle(e.target.value)}
+                      placeholder="e.g. ISO 27001 Security Specification"
+                      maxLength={200}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-[#020618] placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#00c9d2]"
+                    />
                   </div>
 
                   {uploadErrorMsg && (
@@ -1849,8 +1967,7 @@ export function AppShell({
                     >
                       <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                       <span>
-                        Successfully ingested &quot;{uploadSuccessSummary.title}
-                        &quot; and extracted{" "}
+                        Successfully ingested &quot;{uploadSuccessSummary.title}&quot; and extracted{" "}
                         {uploadSuccessSummary.extractedCount} rule draft(s).
                       </span>
                     </div>
@@ -1865,22 +1982,11 @@ export function AppShell({
                         uploadStatus === "uploading" ||
                         uploadStatus === "extracting"
                       }
-                      className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#020618] hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-semibold transition shadow-xs focus-visible:ring-2 focus-visible:ring-[#00c9d2]"
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#020618] hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-semibold transition shadow-xs focus-visible:ring-2 focus-visible:ring-[#00c9d2]"
                     >
-                      {uploadStatus === "uploading" ? (
+                      {uploadStatus === "uploading" || uploadStatus === "extracting" ? (
                         <>
-                          <Loader2
-                            aria-hidden="true"
-                            className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none"
-                          />
-                          <span>Uploading…</span>
-                        </>
-                      ) : uploadStatus === "extracting" ? (
-                        <>
-                          <Loader2
-                            aria-hidden="true"
-                            className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none"
-                          />
+                          <CircularLoader size="xs" variant="white" />
                           <span>Processing…</span>
                         </>
                       ) : (
@@ -1894,12 +2000,35 @@ export function AppShell({
                 </form>
               </div>
 
-              {/* Document Listing */}
+              {/* Document Listing & Search */}
               <div className="space-y-4">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <h2 className="text-sm font-bold text-[#020618]">
                     Your documents ({documents.length})
                   </h2>
+
+                  {/* Filter Search */}
+                  {documents.length > 0 && (
+                    <div className="relative w-full sm:w-64">
+                      <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        value={docSearch}
+                        onChange={(e) => setDocSearch(e.target.value)}
+                        placeholder="Filter documents…"
+                        className="w-full pl-8 pr-8 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#00c9d2]"
+                      />
+                      {docSearch && (
+                        <button
+                          type="button"
+                          onClick={() => setDocSearch("")}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {docsError && (
@@ -1945,11 +2074,11 @@ export function AppShell({
                     className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-400"
                     aria-live="polite"
                   >
-                    <ContentSkeleton label="Loading documents" />
+                    <CircularLoader size="md" variant="brand" label="Loading documents…" />
                   </div>
                 ) : docsError &&
                   documents.length === 0 ? null : documents.length === 0 ? (
-                  <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-400">
+                  <div className="bg-white rounded-2xl border border-slate-200/90 p-8 text-center text-slate-400 shadow-2xs">
                     <FileText className="w-8 h-8 mx-auto mb-2 opacity-30 text-slate-600" />
                     <p className="text-sm font-semibold text-[#020618]">
                       No documents in {activeProject?.name || "project"} yet
@@ -1960,13 +2089,21 @@ export function AppShell({
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {documents.map((doc) => (
-                      <DocumentRow
-                        key={doc._id}
-                        document={doc}
-                        onRemove={() => setDocumentToRemove(doc)}
-                      />
-                    ))}
+                    {documents
+                      .filter((d) => d.title.toLowerCase().includes(docSearch.toLowerCase()))
+                      .map((doc) => (
+                        <DocumentRow
+                          key={doc._id}
+                          document={doc}
+                          onRemove={() => setDocumentToRemove(doc)}
+                        />
+                      ))}
+                    {docSearch &&
+                      documents.filter((d) => d.title.toLowerCase().includes(docSearch.toLowerCase())).length === 0 && (
+                        <div className="text-center py-8 bg-white rounded-2xl border border-slate-200 p-6 text-slate-500 text-xs">
+                          No documents matching &quot;{docSearch}&quot;
+                        </div>
+                      )}
                   </div>
                 )}
               </div>

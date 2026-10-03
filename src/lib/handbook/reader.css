@@ -6,26 +6,50 @@
   margin: auto;
 }
 .book-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 25;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
+  gap: 16px;
   flex-wrap: wrap;
-  margin-bottom: 24px;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.04);
+  margin-bottom: 20px;
 }
 .book-toolbar h1 {
-  font-size: 20px;
-  font-weight: 600;
+  font-size: 17px;
+  font-weight: 700;
+  color: #020618;
   margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 .book-toolbar p,
 .book-edition {
-  font-size: 12px;
-  color: #657180;
-  margin: 6px 0 0;
+  font-size: 11px;
+  color: #64748b;
+  margin: 2px 0 0;
+}
+.book-progress-bar {
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  height: 2.5px;
+  background: #00c9d2;
+  border-radius: 9999px;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .book-actions {
   display: flex;
+  align-items: center;
   gap: 8px;
   flex-wrap: wrap;
 }
@@ -34,64 +58,118 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  min-height: 38px;
-  padding: 8px 12px;
-  border: 1px solid #d7dde3;
-  border-radius: 7px;
+  min-height: 36px;
+  padding: 7px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
   background: #fff;
-  color: #263444;
+  color: #1e293b;
   font-size: 12px;
+  font-weight: 500;
   text-decoration: none;
   cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  transition: all 0.15s ease;
 }
 .book-button:hover:not(:disabled) {
-  background: #f1f5f6;
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #020618;
 }
 .book-button:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+.book-button-active {
+  background: #00c9d2/10 !important;
+  border-color: #00c9d2 !important;
+  color: #008f96 !important;
+  font-weight: 600;
 }
 .book-reader button:focus-visible,
 .book-reader a:focus-visible,
 .book-reader select:focus-visible,
 .book-reader input:focus-visible,
 .book-page-scroll:focus-visible {
-  outline: 2px solid #087f87;
-  outline-offset: 3px;
+  outline: 2px solid #00c9d2;
+  outline-offset: 2px;
 }
 .book-desk {
+  position: relative;
   display: flex;
   justify-content: center;
-  background: #edf0f2;
-  border: 1px solid #e1e5e8;
-  border-radius: 10px;
-  padding: 32px 20px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 32px 16px 40px;
+  min-height: 720px;
 }
 .book-paper {
   position: relative;
   background: #fff;
-  width: min(100%, 552px);
-  aspect-ratio: 148/210;
-  box-shadow: 0 12px 35px #18253612;
+  width: min(100%, 640px);
+  min-height: 740px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.07), 0 2px 6px rgba(15, 23, 42, 0.03);
   container-type: inline-size;
-  border: 1px solid #e2e4e5;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
 }
 .book-page-scroll {
-  position: absolute;
-  inset: 0;
-  overflow: auto;
-  padding: 42px 44px 56px;
-  scrollbar-width: thin;
+  flex: 1;
+  padding: 44px 48px 56px;
 }
 .book-page-number {
-  position: absolute;
-  bottom: 16px;
-  left: 0;
-  right: 0;
+  padding: 14px 0 16px;
   text-align: center;
   font-size: 11px;
-  color: #717b85;
+  font-weight: 500;
+  color: #94a3b8;
   background: white;
+  border-top: 1px solid #f1f5f9;
+  border-radius: 0 0 12px 12px;
+}
+/* Floating Eye-level Side Navigation */
+.book-float-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.1);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.book-float-nav:hover:not(:disabled) {
+  background: #ffffff;
+  border-color: #00c9d2;
+  color: #020618;
+  transform: translateY(-50%) scale(1.08);
+}
+.book-float-nav:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+.book-float-prev {
+  left: 12px;
+}
+.book-float-next {
+  right: 12px;
+}
+@media (max-width: 800px) {
+  .book-float-nav {
+    display: none;
+  }
 }
 .book-eyebrow {
   font-size: 10px;
