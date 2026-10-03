@@ -10,7 +10,23 @@ Give a compliance reviewer a safe Studio workflow for correcting extracted rules
 Gemini output -> Sanity draft -> human correction -> review metadata -> publish -> runtime search
 ```
 
-Extraction is never an approval decision. Application code may create or replace drafts, but only a human in Sanity Studio may publish a `complianceRule`.
+Extraction is never an approval decision. In the original workflow, application code creates drafts and a human publishes them in Sanity Studio. The user-approved extension below also permits explicit human review and selected-entry publication inside Veyd.
+
+## Approved extension — selected-entry review in Veyd (2026-10-04)
+
+- Each ready document with extracted entries exposes **Review entries**. Studio review remains available.
+- Only the authenticated project owner can read that document's pending drafts through `GET /api/projects/[projectId]/documents/[documentId]/review`. This is a dedicated private review endpoint, not a public draft perspective flag.
+- Show citations, source excerpts and PDF-page links; allow corrections to the existing editorial fields. Project identity, source reference and PDF remain immutable. Do not reintroduce an Industry/Sector input.
+- No entries are preselected. The owner selects up to 50 entries and explicitly confirms evidence review before **Publish selected**. Editing or changing selection clears confirmation.
+- `POST` to the same endpoint accepts only selected draft IDs, expected revisions, editable fields and `confirmReviewed: true`. Validate all selected entries before any write, including page bounds, required evidence, unique keywords and date order.
+- Publish the selection atomically with the Sanity Actions API: draft edits stamp server-side `lastReviewedAt`, then publication actions run in the same transaction with `ifDraftRevisionId` set to the reviewed draft revision. Actions edit patches do not accept the Mutations API's `ifRevisionID` field. Guard existing published revisions and reject scope mismatches, tombstoned sources and stale drafts. Never publish unselected entries, auto-approve AI extraction or retry an uncertain write automatically.
+- Corrections are saved only when their selected entries publish; cancel/reload warns before discarding local corrections. Loading content uses skeletons; busy action buttons use circular loaders.
+- Review queries are keyed by user/project/document; invalidate project document counts and handbook state after success. Document-count reads bypass the Sanity CDN. Handbook generation continues through the existing source-fingerprint workflow; publication does not call AI directly.
+- List at most 200 pending drafts, explicitly report additional entries, and let users reload after a batch. General research, public APIs and MCP remain published-only.
+
+Extension checkpoint: verify no-selection/confirmation/validation gates; selected-only all-or-nothing publication; stale-revision, cross-project, tombstone and unauthenticated failures; desktop/mobile keyboard flow and cache refresh. Do not publish live user entries without their explicit approval of those entries.
+
+Extension verification (2026-10-04): application production/type checks and Studio build passed. Real Sanity Actions dry-run accepted a two-entry edit/publication batch, rejected a stale `ifDraftRevisionId` with `409`, and left document revisions unchanged. Authenticated browser checks passed private/no-store reads, no preselection, confirmation/validation gates, edit-reset approval, Tab containment, Escape/focus restoration and action visibility at 1440, 390 and 320 px. Rejection probes returned `400` for absent approval, `409` for stale revisions, `403` for a foreign origin, `404` for an unowned project and `401` without a session. The user confirmed live review/publication now works. The agent did not publish real entries; screen-reader/software-keyboard behavior, removal races and exhaustive loading/error layouts remain unverified. No unit/integration suite was added.
 
 ## Studio organization
 

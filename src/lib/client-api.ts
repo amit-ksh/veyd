@@ -2,6 +2,11 @@ import type { ComplianceDocumentListItem } from "@/lib/sanity/types";
 import type { ConversationResponse } from "@/lib/conversations/service";
 import type { IngestDocumentResult } from "@/lib/ingestion/service";
 import type { HandbookResponse } from "@/lib/handbook/types";
+import type {
+  DocumentReviewResponse,
+  PublishSelection,
+  PublishReviewResult,
+} from "@/lib/review/types";
 import {
   chatFileSchema,
   type ChatFileInput,
@@ -142,6 +147,42 @@ export const clientApi = {
         ...body({ confirmDocumentId: documentId }),
       },
     );
+  },
+  async documentReview(
+    projectId: string,
+    documentId: string,
+    signal?: AbortSignal,
+  ) {
+    const result = await json<DocumentReviewResponse>(
+      `${projectPath(projectId)}/documents/${encodeURIComponent(documentId)}/review`,
+      { signal },
+    );
+    if (
+      result.document?.id !== documentId ||
+      result.document.projectId !== projectId ||
+      !Array.isArray(result.entries)
+    ) {
+      throw invalidResponse();
+    }
+    return result;
+  },
+  async publishReviewedEntries(
+    projectId: string,
+    documentId: string,
+    selection: PublishSelection,
+  ) {
+    const result = await json<PublishReviewResult>(
+      `${projectPath(projectId)}/documents/${encodeURIComponent(documentId)}/review`,
+      { method: "POST", ...body(selection) },
+    );
+    if (
+      result.documentId !== documentId ||
+      result.projectId !== projectId ||
+      !Array.isArray(result.publishedIds)
+    ) {
+      throw invalidResponse();
+    }
+    return result;
   },
   async history(projectId: string, signal?: AbortSignal) {
     const result = await json<{ conversations: ConversationListItem[] }>(

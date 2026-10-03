@@ -77,7 +77,7 @@ The document list is ordered newest first and displays:
 - Safe failure message when present.
 - Link to the durable PDF and, for an operator, a link to open the source in Sanity Studio.
 
-Do not add in-app rule editing or publication controls.
+The original milestone excludes in-app rule editing/publication. The user-approved selected-entry review extension in [Milestone 4](04-rule-review-and-publication.md#approved-extension--selected-entry-review-in-veyd-2026-10-04) supersedes that exclusion for authenticated project owners only.
 
 ## Accessibility and responsiveness
 

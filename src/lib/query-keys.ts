@@ -7,6 +7,12 @@ export const queryKeys = {
     [...queryKeys.user(userId), "project", projectId] as const,
   documents: (userId: string | undefined, projectId: string) =>
     [...queryKeys.project(userId, projectId), "documents"] as const,
+  documentReview: (
+    userId: string | undefined,
+    projectId: string,
+    documentId: string,
+  ) =>
+    [...queryKeys.documents(userId, projectId), documentId, "review"] as const,
   conversations: (userId: string | undefined, projectId: string) =>
     [...queryKeys.project(userId, projectId), "conversations"] as const,
   history: (userId: string | undefined, projectId: string) =>

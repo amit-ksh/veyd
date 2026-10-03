@@ -66,7 +66,7 @@ export async function listPublishedDocuments(params: {
 
   const [tombstonedIds, docs] = await Promise.all([
     getTombstonedDocumentIds(projectId),
-    publishedClient.fetch<ComplianceDocumentListItem[]>(buildDocumentListQuery(offset, limit), {
+    publishedClient.withConfig({ useCdn: false }).fetch<ComplianceDocumentListItem[]>(buildDocumentListQuery(offset, limit), {
       projectId,
       industry: params.industry?.trim() || null,
       status: params.status || null,
