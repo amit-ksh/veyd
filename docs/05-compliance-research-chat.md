@@ -87,6 +87,7 @@ The model instructions and tool implementation must enforce this sequence:
 - Bound tool iterations to three steps.
 - Use low randomness for compliance answers.
 - Set explicit request timeouts for Gemini and Firecrawl.
+- Share one 90-second abort deadline across initial generation, research and answer repair; combine it with the client disconnect signal. The chat route allows 120 seconds for authorization/persistence overhead. Transport retries are disabled.
 - Log request ID, selected tool names, durations, and source counts; do not log full prompts or scraped page bodies in production.
 
 ## Citation contract
@@ -114,6 +115,16 @@ Stream citations as structured data parts and render them after the answer in fi
 - Gemini failure during stream: emit an error part and keep the already-rendered content visibly incomplete.
 - Client disconnect: abort upstream requests where supported.
 
+## Bounded final-answer repair
+
+Chat remains streamed Markdown; the handbook schema is not applied to ordinary answers. If the bounded tool loop completes successfully but its final text is empty, run synthesis-only recovery with the same question, actual tool results and tracked citations. Do not repeat Sanity or Firecrawl searches, add tools, ingest files or accept model-authored citation metadata.
+
+Validate recovery output as nonempty Markdown (up to 20,000 characters), an answered/insufficient-evidence status and indexes referencing only the retrieved citations. Answered recovery requires a source; numbered markers must match selected sources. Convert the validated result to the existing Markdown/message format and derive its source markers from those validated indexes. When no sources were retrieved, return a deterministic insufficient-evidence message without another paid model call.
+
+Allow at most three recovery model calls total within the original deadline. Reuse each malformed response with schema feedback and the original evidence until it validates or the bounds are exhausted. This is response-format recovery, not verification that every model explanation is factually correct. The source-fidelity and secondary/stale warning instructions still apply.
+
+Hold the stream's final completion event until repair and persistence finish. Save exactly one complete assistant answer with the existing citations/files; emit one final completion event. Preserve all displayed text parts so reloaded history matches the streamed response, and pass preliminary text to recovery as the existing draft. Never repair or persist provider-failed, truncated, filtered or disconnected streams. Partial text stays visibly incomplete, with a safe retry message. Exhausted repair leaves the user message intact and does not create an assistant record. Log attempt counts and identifiers, not prompts, source bodies or provider error details.
+
 ## Tasks
 
 - [x] Add the server-only Gemini provider and model factory.
@@ -136,6 +147,12 @@ Stream citations as structured data parts and render them after the answer in fi
 8. Run type-check and production build commands.
 
 ## Checkpoint record
+
+### Response recovery follow-up — 2026-10-04
+
+The actual route/AI SDK manual fixture reproduced an empty final answer with retrieved current sources: zero saved assistant messages and a stream error. After recovery was added, it produced one saved cited answer without another search. Eleven temporary manual scenarios passed: normal answers without repair; current, missing and stale-source recovery; exact preliminary-text/history matching; consecutive malformed-response reuse; invalid-response rejection after three recovery calls; no-source insufficient evidence without paid recovery; provider-interrupted and truncated streams not saved/retried; and client abort during recovery preventing persistence. Successful scenarios checked exactly one finish event, matching streamed/stored text, known source references and a shared abort signal. Fixtures were removed, not retained as a unit/integration suite.
+
+A real in-memory recovery with the unchanged `gemini-3.8-flash` model and an existing published Pharma project entry returned nonempty Markdown with its known source marker. No chat, source or publication record was added or changed by that check. Application type-checking and the isolated production build passed. This verifies response structure and retrieval provenance, not independent factual accuracy or an authenticated browser/deployed flow. Changes are committed with the handbook schema repair; resolve the revision with `git log -1 --format=%H -- src/lib/chat/response-repair.ts`. No model, secret, dependency or database schema change is required.
 
 - Date: 2026-09-27
 - Commit: Pending (Master)

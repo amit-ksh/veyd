@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+import { AppError, ErrorCodes } from "@/lib/errors";
 import { Prisma } from "@prisma/client";
 import {
   inventoryProjectSources,
@@ -315,9 +316,16 @@ export async function generateProjectHandbook(params: {
       logger.error("handbook_candidate_validation_failed", {
         correlationId,
         projectId,
-        errors: validationResult.error.flatten(),
+        issues: validationResult.error.issues.map((issue) => ({
+          path: issue.path.join("."),
+          code: issue.code,
+        })),
       });
-      throw new Error("Handbook candidate snapshot failed schema validation");
+      throw new AppError(
+        "The handbook could not be converted to the required format. No invalid handbook was saved; your published sources are unchanged.",
+        ErrorCodes.UPSTREAM_FAILURE,
+        502,
+      );
     }
 
     // 6. Pre-commit invariant check: Re-verify that source fingerprint has not changed

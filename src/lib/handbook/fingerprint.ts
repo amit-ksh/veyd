@@ -5,7 +5,7 @@ import { logger } from "@/lib/logger";
 import { defineQuery } from "groq";
 
 export const HANDBOOK_SCHEMA_VERSION = 2;
-export const HANDBOOK_GENERATOR_VERSION = "2.0.5";
+export const HANDBOOK_GENERATOR_VERSION = "2.0.6";
 
 export class RuleSourceMismatchError extends Error {
   constructor(message: string) {
@@ -97,7 +97,7 @@ export async function inventoryProjectSources(params: {
         title?: string | null;
         industry?: string | null;
         projectId?: string | null;
-        fileUrl?: string;
+        fileUrl?: string | null;
       } | null;
     }>
   >(
@@ -188,7 +188,7 @@ export async function inventoryProjectSources(params: {
       title: r.sourceDocument.title || "Untitled Document",
       industry: r.sourceDocument.industry || "",
       projectId,
-      fileUrl: r.sourceDocument.fileUrl,
+      fileUrl: r.sourceDocument.fileUrl ?? undefined,
     };
     documentsMap.set(doc._id, doc);
 

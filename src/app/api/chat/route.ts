@@ -18,6 +18,7 @@ import { ErrorCodes } from "@/lib/errors";
 import { auth } from "@/lib/auth";
 import { getGeminiModel } from "@/lib/chat/provider";
 import { createChatToolTracker, createChatTools } from "@/lib/chat/tools";
+import { repairEmptyChatResponse } from "@/lib/chat/response-repair";
 import {
   createConversation,
   appendUserMessage,
@@ -28,7 +29,7 @@ import { prisma } from "@/lib/prisma";
 import { logger, getOrCreateCorrelationId } from "@/lib/logger";
 
 export const runtime = "nodejs";
-export const maxDuration = 60; // Allow sufficient time for tool execution and streaming
+export const maxDuration = 120; // One 90s generation/repair deadline plus auth and persistence overhead.
 export const dynamic = "force-dynamic";
 
 const SYSTEM_PROMPT = `You are Veyd, an authoritative regulatory intelligence and compliance research assistant.
@@ -380,8 +381,10 @@ export async function POST(req: NextRequest) {
   }
 
   // 11. Prepare tracking and server tools
+  const deadlineSignal = AbortSignal.timeout(90_000);
+  const generationSignal = AbortSignal.any([req.signal, deadlineSignal]);
   const tracker = createChatToolTracker();
-  const tools = createChatTools(tracker, req.signal, effectiveProjectId);
+  const tools = createChatTools(tracker, generationSignal, effectiveProjectId);
 
   // 12. Create UI message stream with early conversation ID and citations
   const stream = createUIMessageStream({
@@ -396,6 +399,7 @@ export async function POST(req: NextRequest) {
           },
         });
 
+        let streamFailed = false;
         const result = streamText({
           model,
           system: SYSTEM_PROMPT,
@@ -403,7 +407,11 @@ export async function POST(req: NextRequest) {
           tools,
           temperature: 0.1,
           stopWhen: isStepCount(3),
-          abortSignal: req.signal,
+          maxRetries: 0,
+          abortSignal: generationSignal,
+          onError: () => {
+            streamFailed = true;
+          },
           prepareStep: async ({ stepNumber }) => {
             // Reserve the last bounded step for synthesis, not another search.
             if (stepNumber >= 2) {
@@ -419,11 +427,41 @@ export async function POST(req: NextRequest) {
           },
         });
 
-        // Merge text deltas and tool stream chunks
-        writer.merge(toUIMessageStream({ stream: result.stream }));
-
-        // Await stream completion to gather final tool outputs & citations
-        await result.consumeStream();
+        // Hold the finish event until validation/recovery and persistence complete.
+        const reader = toUIMessageStream({
+          stream: result.stream,
+          sendFinish: false,
+          onError: () =>
+            "Answer generation failed. Any partial response is incomplete; please retry.",
+        }).getReader();
+        let streamedText = "";
+        try {
+          while (true) {
+            const chunk = await reader.read();
+            if (chunk.done) break;
+            if (chunk.value.type === "error") streamFailed = true;
+            if (chunk.value.type === "text-delta")
+              streamedText += chunk.value.delta;
+            writer.write(chunk.value);
+          }
+        } finally {
+          reader.releaseLock();
+        }
+        // Never repair or save a disconnected, interrupted or provider-failed stream.
+        if (req.signal.aborted) return;
+        if (streamFailed) {
+          logger.warn("chat_generation_stream_failed", { correlationId });
+          return;
+        }
+        if (deadlineSignal.aborted)
+          throw new Error(
+            "Answer generation reached the time limit. Please retry your question.",
+          );
+        const finishReason = await result.finishReason;
+        if (["length", "content-filter", "error"].includes(finishReason))
+          throw new Error(
+            "Answer generation was incomplete. Please retry your question.",
+          );
 
         // Stream normalized structured citations as a structured data part
         if (tracker.citations.length > 0) {
@@ -433,13 +471,34 @@ export async function POST(req: NextRequest) {
           });
         }
 
-        // Persist assistant message only from the stream completion callback
-        const finalText = await result.text;
-        if (!finalText?.trim() && !req.signal.aborted) {
-          throw new Error(
-            "No answer was generated from the retrieved sources. Please retry your question.",
-          );
+        // Recover before committing a complete assistant response.
+        let finalText = await result.text;
+        if (!finalText?.trim()) {
+          finalText = await repairEmptyChatResponse({
+            model,
+            question: userText,
+            draftText: streamedText,
+            evidence: (await result.steps).flatMap((step) =>
+              step.toolResults.map((toolResult) => ({
+                toolName: toolResult.toolName,
+                output: toolResult.output,
+              })),
+            ),
+            citations: tracker.citations,
+            system: SYSTEM_PROMPT,
+            abortSignal: generationSignal,
+            correlationId,
+          });
+          generationSignal.throwIfAborted();
+          const textId = crypto.randomUUID();
+          writer.write({ type: "text-start", id: textId });
+          writer.write({ type: "text-delta", id: textId, delta: finalText });
+          writer.write({ type: "text-end", id: textId });
+          streamedText += finalText;
         }
+        // Preserve exactly what the client rendered, including earlier text parts.
+        finalText = streamedText || finalText;
+        generationSignal.throwIfAborted();
         if (finalText && finalText.trim().length > 0) {
           try {
             const saved = await appendAssistantMessage({
@@ -468,6 +527,7 @@ export async function POST(req: NextRequest) {
             });
           }
         }
+        writer.write({ type: "finish", finishReason: "stop" });
       } finally {
         // Operational logging (No prompts or scraped page bodies)
         const durationMs = Date.now() - startTime;

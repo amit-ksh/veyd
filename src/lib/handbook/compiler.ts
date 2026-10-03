@@ -129,7 +129,8 @@ export function compileProjectHandbook(params: {
         sourcePages: rule.sourcePages
           ? [...rule.sourcePages].sort((a, b) => a - b)
           : [],
-        sourceUrl: doc.fileUrl,
+        // GROQ returns null for a missing asset. Absence is valid; a fake URL is not.
+        sourceUrl: doc.fileUrl ?? undefined,
         evidenceExcerpt: rule.evidenceExcerpt || undefined,
         documentRevision: doc._rev,
         ruleRevision: rule._rev,

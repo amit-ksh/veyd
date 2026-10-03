@@ -10,6 +10,7 @@ Deploy the Next.js application to Vercel and the standalone Studio to Sanity, co
 - Use the Node.js runtime for PDF parsing, private Blob access, Sanity asset upload, AI SDK, and MCP.
 - Set the ingestion route's `maxDuration` to the maximum supported by the selected Vercel plan. The target is 300 seconds; a plan limited to 60 seconds may not reliably process a 100-page PDF synchronously.
 - Keep chat streaming enabled and start the response within the platform's streaming deadline.
+- Chat response repair uses one 90-second generation/recovery deadline and route `maxDuration: 120`; verify the selected deployment supports that runtime allowance. Research is not repeated by recovery, transport retries are disabled, and client disconnects abort the same signal. The original 60-second checkpoint below is historical.
 - Connect one private Blob store and one Upstash Redis database.
 - Configure all server secrets separately for preview and production.
 - Do not expose production on a branch whose environment still points to development Sanity data.
