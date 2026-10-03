@@ -33,6 +33,7 @@ import {
   Trash2,
   Loader2,
   Copy,
+  PlusIcon,
 } from "lucide-react";
 import { useChat } from "@ai-sdk/react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -1343,7 +1344,7 @@ export function AppShell({
                     onClick={handleStartNewSession}
                     className="inline-flex items-center gap-2 px-4 py-2 bg-[#020618] hover:bg-slate-800 text-white rounded-lg text-xs font-semibold transition shadow-xs focus-visible:ring-2 focus-visible:ring-[#00c9d2]"
                   >
-                    <RotateCcw className="w-3.5 h-3.5" />
+                    <PlusIcon className="w-3.5 h-3.5" />
                     <span>Start New Session</span>
                   </button>
                 </div>
@@ -1490,7 +1491,7 @@ export function AppShell({
                       disabled={chatImportBusy}
                       className="inline-flex items-center gap-1.5 px-2.5 py-1 text-slate-600 hover:text-[#020618] hover:bg-slate-100 rounded-lg transition"
                     >
-                      <RotateCcw className="w-3.5 h-3.5" />
+                      <PlusIcon className="w-3.5 h-3.5" />
                       <span>New Session</span>
                     </button>
                   </div>
