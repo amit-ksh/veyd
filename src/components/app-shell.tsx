@@ -1579,15 +1579,41 @@ export function AppShell({
                                   text={textContent}
                                   user={isUser}
                                 />
-                              ) : (
-                                <div className="py-2">
-                                  <CircularLoader
-                                    size="sm"
-                                    variant="brand"
-                                    label="Synthesizing verified response…"
-                                  />
+                              ) : !isUser &&
+                                isStreaming &&
+                                index === messages.length - 1 ? (
+                                <div
+                                  className="space-y-2.5 py-2"
+                                  role="status"
+                                  aria-label="Preparing your answer"
+                                >
+                                  <span className="sr-only">
+                                    Preparing your answer
+                                  </span>
+                                  <Skeleton className="h-3 w-5/6" />
+                                  <Skeleton className="h-3 w-full" />
+                                  <Skeleton className="h-3 w-2/3" />
                                 </div>
-                              )}
+                              ) : !isUser ? (
+                                <div className="space-y-2 py-2 text-slate-600">
+                                  <p>
+                                    No answer was generated. You can send your
+                                    question again.
+                                  </p>
+                                  {!chatError &&
+                                    !isStreaming &&
+                                    index === messages.length - 1 && (
+                                      <button
+                                        type="button"
+                                        onClick={handleRetry}
+                                        disabled={chatImportBusy}
+                                        className="text-xs font-semibold text-[#008f96] underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                                      >
+                                        Retry question
+                                      </button>
+                                    )}
+                                </div>
+                              ) : null}
                             </div>
 
                             {/* Citations List */}
@@ -1691,7 +1717,7 @@ export function AppShell({
                       className="flex items-center gap-2.5 text-xs text-slate-600 bg-white border border-slate-200 rounded-xl p-3 shadow-2xs animate-in fade-in"
                       aria-live="polite"
                     >
-                      <CircularLoader size="xs" variant="brand" />
+                      <Skeleton className="h-3 w-3 shrink-0 rounded-full" />
                       <span className="font-medium">
                         {getToolActivityLabel()}
                       </span>

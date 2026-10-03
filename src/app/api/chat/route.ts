@@ -404,7 +404,11 @@ export async function POST(req: NextRequest) {
           temperature: 0.1,
           stopWhen: isStepCount(3),
           abortSignal: req.signal,
-          prepareStep: async () => {
+          prepareStep: async ({ stepNumber }) => {
+            // Reserve the last bounded step for synthesis, not another search.
+            if (stepNumber >= 2) {
+              return { toolChoice: "none", activeTools: [] };
+            }
             // Programmatically enforce: if current internal knowledge was found, suppress external search
             if (tracker.sanityClassification === "current") {
               return {
@@ -431,6 +435,11 @@ export async function POST(req: NextRequest) {
 
         // Persist assistant message only from the stream completion callback
         const finalText = await result.text;
+        if (!finalText?.trim() && !req.signal.aborted) {
+          throw new Error(
+            "No answer was generated from the retrieved sources. Please retry your question.",
+          );
+        }
         if (finalText && finalText.trim().length > 0) {
           try {
             const saved = await appendAssistantMessage({
