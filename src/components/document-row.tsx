@@ -1,6 +1,14 @@
 "use client";
 
-import { FileText, MoreHorizontal, ExternalLink, Trash2, CheckCircle2, AlertCircle, Clock } from "lucide-react";
+import {
+  FileText,
+  MoreHorizontal,
+  ExternalLink,
+  Trash2,
+  CheckCircle2,
+  AlertCircle,
+  Clock,
+} from "lucide-react";
 import type { ComplianceDocumentListItem } from "@/lib/sanity/types";
 import { CircularLoader } from "@/components/ui/circular-loader";
 
@@ -61,15 +69,24 @@ export function DocumentRow({
               <span>{((item.fileSizeBytes || 0) / 1024).toFixed(0)} KB</span>
               <span className="text-slate-300">&bull;</span>
               <span className="inline-flex items-center gap-1 bg-slate-100/80 px-2 py-0.5 rounded-md text-[11px] text-slate-600">
-                <span className="font-semibold text-slate-800">{item.extractedRuleCount || 0}</span> extracted
+                <span className="font-semibold text-slate-800">
+                  {item.extractedRuleCount || 0}
+                </span>{" "}
+                extracted
               </span>
               <span className="inline-flex items-center gap-1 bg-slate-100/80 px-2 py-0.5 rounded-md text-[11px] text-slate-600">
-                <span className="font-semibold text-slate-800">{item.publishedRuleCount || 0}</span> published
+                <span className="font-semibold text-slate-800">
+                  {item.publishedRuleCount || 0}
+                </span>{" "}
+                published
               </span>
             </div>
 
             {item.failureMessage && (
-              <p className="text-xs text-rose-700 bg-rose-50/70 border border-rose-200/60 rounded-lg p-2" role="status">
+              <p
+                className="text-xs text-rose-700 bg-rose-50/70 border border-rose-200/60 rounded-lg p-2"
+                role="status"
+              >
                 {item.failureMessage}
               </p>
             )}
@@ -100,7 +117,7 @@ export function DocumentRow({
             </summary>
             <div className="absolute right-0 z-30 mt-1.5 w-52 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl animate-in fade-in zoom-in-95 duration-100">
               <a
-                href="http://localhost:3333"
+                href="https://sanity-zeta-six.vercel.app/"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 transition"
@@ -111,7 +128,9 @@ export function DocumentRow({
               <button
                 type="button"
                 onClick={(event) => {
-                  event.currentTarget.closest("details")?.removeAttribute("open");
+                  event.currentTarget
+                    .closest("details")
+                    ?.removeAttribute("open");
                   onRemove();
                 }}
                 className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-medium text-rose-700 hover:bg-rose-50 transition"
