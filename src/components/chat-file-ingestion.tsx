@@ -206,7 +206,7 @@ export function ChatFileIngestion({
           event.target.value = "";
         }}
       />
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="w-full flex flex-wrap justify-center items-center gap-3">
         <button
           type="button"
           disabled={busy || disabled}
@@ -215,9 +215,7 @@ export function ChatFileIngestion({
         >
           <FilePlus2 aria-hidden className="h-4 w-4" /> Attach PDF
         </button>
-        <p className="text-xs text-slate-600">
-          PDF only · 10 MB · 100 pages. Nothing is added until you confirm.
-        </p>
+        <p className="text-xs text-slate-600">PDF only · 10 MB · 100 pages.</p>
       </div>
       {local && (
         <div className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white p-3">

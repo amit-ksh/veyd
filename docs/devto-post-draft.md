@@ -56,20 +56,38 @@ Sanity is Veyd's source-and-review layer:
 2. **Studio:** group source documents, rules awaiting review and published rules so a person can check and correct a draft before publishing it.
 3. **GROQ:** read only published, project-matched entries for cited chat, handbook generation and Veyd's custom read-only MCP endpoint.
 
-Gemini handles extraction, answer writing and handbook drafting; Firecrawl handles external discovery and public PDF parsing. Veyd's MCP endpoint is **not** Sanity Context MCP.
+Gemini handles extraction, answer writing and handbook drafting; Firecrawl handles external discovery and public PDF parsing.
+
+### Sanity features used
+
+- **Content Lake and file assets:** durable source PDFs and structured, source-linked knowledge entries.
+- **Schemas, references and validation:** typed content, linked documents, source pages, evidence excerpts and required review metadata.
+- **Studio Structure Tool and document actions:** source/status lists, an awaiting-review queue, freshness views and human editing/publishing. [Studio configuration](https://github.com/amit-ksh/veyd/blob/main/sanity/sanity.config.ts).
+- **Mutation API and atomic transactions:** create a batch of unpublished rule drafts together, patch processing results, and remove linked content through bounded transactions. [Ingestion implementation](https://github.com/amit-ksh/veyd/blob/main/src/lib/ingestion/service.ts#L248), [removal implementation](https://github.com/amit-ksh/veyd/blob/main/src/lib/tombstones/remover.ts#L263). These use [SDK mutation transactions](https://www.sanity.io/docs/apis-and-sdks/js-client-transactions), not direct Actions API calls.
+- **GROQ queries and ranked search:** project filters, keyword/citation scoring and reference expansion retrieve relevant entries with their source PDFs. [Published queries](https://github.com/amit-ksh/veyd/blob/main/src/lib/sanity/published-queries.ts).
+- **Published perspective and API CDN:** server-side readers exclude drafts and use the CDN in production; the separate write client bypasses the CDN. [Client configuration](https://github.com/amit-ksh/veyd/blob/main/src/lib/sanity/clients.ts).
+- **Vision plugin:** enabled in Studio for inspecting and trying GROQ queries.
 
 ### Sanity schema structure
 
-The active knowledge model keeps each entry connected to its original source:
+All six custom document types registered in [the schema index](https://github.com/amit-ksh/veyd/blob/main/sanity/schemaTypes/index.ts) are listed below. The active knowledge model keeps each entry connected to its original source:
 
 `complianceRule.sourceDocument` → `complianceDocument.fileAsset` → Sanity PDF asset.
 
-| Type | What it stores |
-| --- | --- |
-| `complianceDocument` | `projectId`, title, PDF asset, original filename, size, page count, processing status and extraction metadata. |
-| `complianceRule` | `projectId`, name, description, requirement, applicability, authority/citation, source document reference, pages, evidence excerpt, keywords, freshness and `lastReviewedAt`. |
+| Schema | Purpose and current use | Fields |
+| --- | --- | --- |
+| [`complianceDocument`](https://github.com/amit-ksh/veyd/blob/main/sanity/schemaTypes/complianceDocument.ts) | Active source PDF and extraction record. | `projectId`, `title`, `fileAsset`, `industry`, `originalFileName`, `mimeType`, `fileSizeBytes`, `pageCount`, `processingStatus`, `extractionModel`, `extractedRuleCount`, `uploadedAt`, `extractionCompletedAt`, `failureMessage`. |
+| [`complianceRule`](https://github.com/amit-ksh/veyd/blob/main/sanity/schemaTypes/complianceRule.ts) | Active, source-linked entry drafted by AI and reviewed in Studio. | `projectId`, `ruleName`, `description`, `requirement`, `applicability`, `jurisdiction`, `regulator`, `citation`, `effectiveDate`, `expiresAt`, `sourceDocument`, `sourcePages`, `evidenceExcerpt`, `industry`, `keywords`, `freshnessStatus`, `lastReviewedAt`. |
+| [`conversation`](https://github.com/amit-ksh/veyd/blob/main/sanity/schemaTypes/conversation.ts) | Earlier Sanity chat-session model; still registered, but current chats use PostgreSQL. | `createdAt`, `updatedAt`. |
+| [`message`](https://github.com/amit-ksh/veyd/blob/main/sanity/schemaTypes/message.ts) | Earlier Sanity message model, linked to a conversation; current messages use PostgreSQL. | `conversation`, `role`, `content`, `clientMessageId`, `citations`, `createdAt`. |
+| [`industry`](https://github.com/amit-ksh/veyd/blob/main/sanity/schemaTypes/industry.ts) | Deprecated domain/category model retained for migration safety. | `title`, `slug`, `icon`, `summary`. |
+| [`chapter`](https://github.com/amit-ksh/veyd/blob/main/sanity/schemaTypes/chapter.ts) | Deprecated authored handbook model; current generated handbook snapshots use PostgreSQL. | `title`, `slug`, `industry`, `order`, `summary`, `estimatedMinutes`, `body`, `rules`. |
 
-Studio requires a human review timestamp before publication. Project-matched, published GROQ reads exclude drafts; the app also excludes removed documents. Projects are PostgreSQL records, linked here through `projectId`, not Sanity project documents. The [schema definitions](https://github.com/amit-ksh/veyd/tree/main/sanity/schemaTypes) remain the source of truth; registered legacy types are retained for migration safety, not used as the current chat/handbook store.
+**Embedded object:** `message.citations[]` contains `citationItem` objects with `sourceKind`, `title`, `url`, `ruleId`, `documentId` and `citation`. Source kinds distinguish Sanity, official web and secondary web evidence. This is a nested object, not a seventh document type.
+
+**Other relationships:** `message.conversation` references `conversation`; legacy `chapter.industry` references `industry`, and `chapter.rules[]` references `complianceRule`. Chapter `body` contains Portable Text blocks and images. PDF and image files use Sanity's built-in asset types rather than additional custom schemas. Standard Sanity system fields such as `_id` and `_type` are omitted from the field inventory.
+
+Studio requires a human review timestamp before publication. Project-matched, published GROQ reads exclude drafts; the app also excludes removed documents. Projects are PostgreSQL records, linked through `projectId`, not Sanity project documents. The active document/rule `industry` fields are strings, not references to the legacy `industry` schema; the current upload flow derives that value from the project name. The [schema definitions](https://github.com/amit-ksh/veyd/tree/main/sanity/schemaTypes) remain the source of truth.
 
 ## Sanity Project Details
 
