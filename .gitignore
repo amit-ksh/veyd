@@ -7,3 +7,5 @@ sanity/dist/
 .sanity/
 *.tsbuildinfo
 *.log
+# Local visual acceptance captures, not application assets.
+.impeccable/review/

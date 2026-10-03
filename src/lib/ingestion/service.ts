@@ -1,12 +1,14 @@
 import { del } from "@vercel/blob";
 import { writeClient } from "../sanity/clients";
 import { createPublishedId, createDraftId } from "@sanity/id-utils";
-import { validatePdfBuffer } from "./validator";
-import { extractRulesFromPdf, type ExtractedRule } from "./extractor";
+import { validatePdfBuffer, MAX_FILE_SIZE_BYTES } from "./validator";
+import { extractRulesFromPdf } from "./extractor";
 import {
   InvalidRequestError,
   UpstreamFailureError,
   AppError,
+  ErrorCodes,
+  FileTooLargeError,
 } from "../errors";
 import { logger } from "../logger";
 
@@ -15,6 +17,7 @@ export interface IngestDocumentParams {
   projectId: string;
   title: string;
   industry: string;
+  signal?: AbortSignal;
 }
 
 export interface IngestDocumentResult {
@@ -53,10 +56,13 @@ export function isBlobUrlAuthorized(urlStr: string): boolean {
 /**
  * Fetches private Blob bytes server-side.
  */
-async function fetchBlobBuffer(blobUrl: string): Promise<Buffer> {
+async function fetchBlobBuffer(
+  blobUrl: string,
+  signal?: AbortSignal,
+): Promise<Buffer> {
   if (!isBlobUrlAuthorized(blobUrl)) {
     throw new InvalidRequestError(
-      "blobUrl does not belong to authorized Vercel Blob store"
+      "blobUrl does not belong to authorized Vercel Blob store",
     );
   }
 
@@ -66,15 +72,42 @@ async function fetchBlobBuffer(blobUrl: string): Promise<Buffer> {
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const res = await fetch(blobUrl, { headers });
+  const res = await fetch(blobUrl, {
+    headers,
+    redirect: "error",
+    signal: signal
+      ? AbortSignal.any([signal, AbortSignal.timeout(20_000)])
+      : AbortSignal.timeout(20_000),
+  });
   if (!res.ok) {
     throw new InvalidRequestError(
-      `Failed to fetch blob from temporary store (status: ${res.status})`
+      `Failed to fetch blob from temporary store (status: ${res.status})`,
     );
   }
 
-  const arrayBuffer = await res.arrayBuffer();
-  return Buffer.from(arrayBuffer);
+  if (Number(res.headers.get("content-length")) > MAX_FILE_SIZE_BYTES) {
+    await res.body?.cancel();
+    throw new FileTooLargeError("This PDF exceeds the 10 MB limit.");
+  }
+  if (!res.body) throw new InvalidRequestError("The temporary PDF is empty.");
+  const reader = res.body.getReader();
+  const chunks: Buffer[] = [];
+  let size = 0;
+  try {
+    for (;;) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      size += chunk.value.byteLength;
+      if (size > MAX_FILE_SIZE_BYTES) {
+        await reader.cancel();
+        throw new FileTooLargeError("This PDF exceeds the 10 MB limit.");
+      }
+      chunks.push(Buffer.from(chunk.value));
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  return Buffer.concat(chunks, size);
 }
 
 /**
@@ -89,22 +122,58 @@ async function fetchBlobBuffer(blobUrl: string): Promise<Buffer> {
  */
 export async function ingestDocument(
   params: IngestDocumentParams,
-  correlationId?: string
+  correlationId?: string,
 ): Promise<IngestDocumentResult> {
-  const { blobUrl, projectId, title, industry } = params;
+  const { blobUrl } = params;
   const token = process.env.BLOB_READ_WRITE_TOKEN;
+  try {
+    const buffer = await fetchBlobBuffer(blobUrl, params.signal);
+    return await ingestPdfBuffer(params, buffer, correlationId);
+  } catch (error) {
+    if (
+      error instanceof AppError &&
+      error.details &&
+      typeof error.details === "object" &&
+      "storageStarted" in error.details
+    )
+      throw error;
+    throw new AppError(
+      error instanceof AppError
+        ? error.message
+        : "Could not read the temporary PDF. Select the file again.",
+      error instanceof AppError ? error.code : ErrorCodes.UPSTREAM_FAILURE,
+      error instanceof AppError ? error.status : 502,
+      { storageStarted: false },
+    );
+  } finally {
+    if (blobUrl && isBlobUrlAuthorized(blobUrl)) {
+      try {
+        await del(blobUrl, { token });
+      } catch {
+        logger.warn("temporary_blob_delete_failed", { correlationId });
+      }
+    }
+  }
+}
 
+/** Shared validated-PDF pipeline; remote imports never pass arbitrary URLs to Blob fetching. */
+export async function ingestPdfBuffer(
+  params: Omit<IngestDocumentParams, "blobUrl">,
+  buffer: Buffer,
+  correlationId?: string,
+): Promise<IngestDocumentResult> {
+  const { projectId, title, industry, signal } = params;
   let createdDocumentId: string | null = null;
+  let storageStarted = false;
 
   try {
-    // 1. Fetch blob buffer
-    const buffer = await fetchBlobBuffer(blobUrl);
-
     // 2. Validate PDF signature, bounds, and readability
     const { pageCount, fileSizeBytes } = await validatePdfBuffer(buffer);
+    signal?.throwIfAborted();
 
     // 3. Upload file asset to Sanity
     let assetId: string;
+    storageStarted = true;
     try {
       const asset = await writeClient.assets.upload("file", buffer, {
         filename: `${title.replace(/[^a-zA-Z0-9_-]/g, "_")}.pdf`,
@@ -113,7 +182,9 @@ export async function ingestDocument(
       assetId = asset._id;
     } catch (uploadErr) {
       console.error("Sanity asset upload error:", (uploadErr as Error).message);
-      throw new UpstreamFailureError("Failed to store PDF asset in Sanity Content Lake");
+      throw new UpstreamFailureError(
+        "Failed to store PDF asset in Sanity Content Lake",
+      );
     }
 
     // 4. Create document in processing state
@@ -143,15 +214,30 @@ export async function ingestDocument(
         uploadedAt: new Date().toISOString(),
       });
     } catch (docErr) {
-      console.error("Failed to create complianceDocument:", (docErr as Error).message);
-      throw new UpstreamFailureError("Failed to create document record in Sanity");
+      console.error(
+        "Failed to create complianceDocument:",
+        (docErr as Error).message,
+      );
+      throw new UpstreamFailureError(
+        "Failed to create document record in Sanity",
+      );
     }
 
     // 5. Extract rules with Gemini
-    const { rules, modelUsed } = await extractRulesFromPdf(buffer, pageCount);
+    const { rules, modelUsed } = await extractRulesFromPdf(
+      buffer,
+      pageCount,
+      undefined,
+      signal,
+    );
+    signal?.throwIfAborted();
 
     // 6. Batch create unpublished rule drafts
-    const createdDrafts: Array<{ ruleId: string; draftId: string; ruleName: string }> = [];
+    const createdDrafts: Array<{
+      ruleId: string;
+      draftId: string;
+      ruleName: string;
+    }> = [];
 
     if (rules.length > 0) {
       const tx = writeClient.transaction();
@@ -194,8 +280,13 @@ export async function ingestDocument(
       try {
         await tx.commit();
       } catch (txErr) {
-        console.error("Failed to commit rule drafts transaction:", (txErr as Error).message);
-        throw new UpstreamFailureError("Failed to persist extracted rule drafts in Sanity");
+        console.error(
+          "Failed to commit rule drafts transaction:",
+          (txErr as Error).message,
+        );
+        throw new UpstreamFailureError(
+          "Failed to persist extracted rule drafts in Sanity",
+        );
       }
     }
 
@@ -211,8 +302,13 @@ export async function ingestDocument(
         })
         .commit();
     } catch (patchErr) {
-      console.error("Failed to update document status to ready:", (patchErr as Error).message);
-      // Log for operator repair, don't fail client if drafts were committed
+      console.error(
+        "Failed to update document status to ready:",
+        (patchErr as Error).message,
+      );
+      throw new UpstreamFailureError(
+        "The document was stored but its final status could not be saved. Review it in Documents.",
+      );
     }
 
     return {
@@ -229,7 +325,9 @@ export async function ingestDocument(
     // If failure occurred after document was created, mark it failed
     if (createdDocumentId) {
       const safeMessage =
-        error instanceof AppError ? error.message : "Processing failed during rule extraction";
+        error instanceof AppError
+          ? error.message
+          : "Processing failed during rule extraction";
       try {
         await writeClient
           .patch(createdDocumentId)
@@ -240,24 +338,20 @@ export async function ingestDocument(
           })
           .commit();
       } catch (patchErr) {
-        console.error("Failed to mark document failed:", (patchErr as Error).message);
+        console.error(
+          "Failed to mark document failed:",
+          (patchErr as Error).message,
+        );
       }
     }
 
-    throw error;
-  } finally {
-    // 8. Delete temporary Blob in finally boundary
-    if (blobUrl && isBlobUrlAuthorized(blobUrl)) {
-      try {
-        await del(blobUrl, { token });
-      } catch (delErr) {
-        // Blob deletion failure should not crash the request; log locator for operator manual cleanup
-        logger.warn("temporary_blob_delete_failed", {
-          correlationId,
-          blobUrl,
-          error: (delErr as Error).message,
-        });
-      }
-    }
+    throw new AppError(
+      error instanceof AppError
+        ? error.message
+        : "Document processing failed. Review the document status before retrying.",
+      error instanceof AppError ? error.code : ErrorCodes.UPSTREAM_FAILURE,
+      error instanceof AppError ? error.status : 502,
+      { documentId: createdDocumentId || undefined, storageStarted },
+    );
   }
 }

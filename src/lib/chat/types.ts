@@ -63,6 +63,7 @@ export type ExternalWebResultItem = {
   snippet: string;
   markdown: string;
   domain: string;
+  files?: import("@/lib/chat-files/types").ChatFile[];
 };
 
 export type SearchExternalRegulationsOutput = {

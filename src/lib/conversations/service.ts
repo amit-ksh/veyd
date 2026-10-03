@@ -1,8 +1,15 @@
 import { prisma } from "@/lib/prisma";
 import type { Citation, PresentedCitation } from "@/lib/chat/types";
+import {
+  readMessageMetadata,
+  messageMetadata,
+  type ChatFile,
+} from "@/lib/chat-files/types";
 
 if (typeof window !== "undefined") {
-  throw new Error("Cannot import server conversation service in client-side code");
+  throw new Error(
+    "Cannot import server conversation service in client-side code",
+  );
 }
 
 export type ConversationResponse = {
@@ -18,6 +25,7 @@ export type ConversationResponse = {
     role: "user" | "assistant";
     content: string;
     citations: PresentedCitation[];
+    files: ChatFile[];
     createdAt: string;
   }>;
 };
@@ -25,7 +33,11 @@ export type ConversationResponse = {
 /**
  * Creates a new conversation in PostgreSQL for the authenticated user and project.
  */
-export async function createConversation(userId: string, projectId: string, title?: string) {
+export async function createConversation(
+  userId: string,
+  projectId: string,
+  title?: string,
+) {
   if (!projectId) {
     throw new Error("projectId is required to create a conversation");
   }
@@ -47,7 +59,7 @@ export async function createConversation(userId: string, projectId: string, titl
 export async function getConversation(
   conversationId: string,
   userId: string,
-  projectId?: string
+  projectId?: string,
 ): Promise<ConversationResponse | null> {
   const conv = await prisma.conversation.findFirst({
     where: {
@@ -91,9 +103,12 @@ export async function getConversation(
       updatedAt: conv.updatedAt.toISOString(),
     },
     messages: conv.messages.map((m) => {
-      const rawCitations = Array.isArray(m.citations) ? (m.citations as unknown as Citation[]) : [];
+      const metadata = readMessageMetadata(m.citations);
+      const rawCitations = metadata.citations;
       const presentedCitations: PresentedCitation[] = rawCitations.map((c) => {
-        const tombstone = c.documentId ? removedDocsMap.get(c.documentId) : undefined;
+        const tombstone = c.documentId
+          ? removedDocsMap.get(c.documentId)
+          : undefined;
         if (tombstone) {
           return {
             ...c,
@@ -115,6 +130,11 @@ export async function getConversation(
         role: m.role as "user" | "assistant",
         content: m.content,
         citations: presentedCitations,
+        files: metadata.files.map((file) =>
+          file.documentId && removedDocsMap.has(file.documentId)
+            ? { ...file, status: "removed" as const, retryable: false }
+            : file,
+        ),
         createdAt: m.createdAt.toISOString(),
       };
     }),
@@ -203,8 +223,9 @@ export async function appendAssistantMessage(params: {
   conversationId: string;
   content: string;
   citations?: Citation[];
+  files?: ChatFile[];
 }) {
-  const { conversationId, content, citations } = params;
+  const { conversationId, content, citations, files } = params;
 
   return prisma.$transaction(async (tx) => {
     const msg = await tx.message.create({
@@ -212,7 +233,11 @@ export async function appendAssistantMessage(params: {
         conversationId,
         role: "assistant",
         content,
-        citations: citations && citations.length > 0 ? (citations as unknown as object) : undefined,
+        citations: files?.length
+          ? messageMetadata(citations || [], files)
+          : citations && citations.length > 0
+            ? (citations as unknown as object)
+            : undefined,
       },
     });
 

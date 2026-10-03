@@ -2,6 +2,11 @@ import type { ComplianceDocumentListItem } from "@/lib/sanity/types";
 import type { ConversationResponse } from "@/lib/conversations/service";
 import type { IngestDocumentResult } from "@/lib/ingestion/service";
 import type { HandbookResponse } from "@/lib/handbook/types";
+import {
+  chatFileSchema,
+  type ChatFileInput,
+  type ChatFileResult,
+} from "@/lib/chat-files/types";
 
 export interface ProjectItem {
   id: string;
@@ -115,6 +120,19 @@ export const clientApi = {
       method: "POST",
       ...body(input),
     });
+  },
+  async ingestChatFile(input: ChatFileInput) {
+    const result = await json<ChatFileResult>(
+      projectPath(input.projectId) + "/chat-files/ingest",
+      {
+        method: "POST",
+        ...body(input),
+      },
+    );
+    const file = chatFileSchema.safeParse(result.file);
+    if (!file.success || !result.conversationId || !result.messageId)
+      throw invalidResponse();
+    return { ...result, file: file.data };
   },
   removeDocument(projectId: string, documentId: string) {
     return json(

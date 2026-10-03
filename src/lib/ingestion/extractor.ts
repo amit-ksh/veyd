@@ -14,8 +14,14 @@ export const extractedRuleSchema = z.object({
   evidenceExcerpt: z.string().trim().min(1),
   sourcePages: z.array(z.number().int().min(1).max(100)).min(1),
   keywords: z.array(z.string().trim().min(1)).min(1).max(20),
-  effectiveDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Must be YYYY-MM-DD").optional(),
-  expiresAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Must be YYYY-MM-DD").optional(),
+  effectiveDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Must be YYYY-MM-DD")
+    .optional(),
+  expiresAt: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Must be YYYY-MM-DD")
+    .optional(),
 });
 
 export type ExtractedRule = z.infer<typeof extractedRuleSchema>;
@@ -31,10 +37,14 @@ const extractionResponseSchema = z.object({
 export async function extractRulesFromPdf(
   pdfBuffer: Buffer,
   pageCount: number,
-  modelName: string = process.env.GEMINI_MODEL || "gemini-2.0-flash"
+  modelName: string = process.env.GEMINI_MODEL || "gemini-2.0-flash",
+  abortSignal?: AbortSignal,
 ): Promise<{ rules: ExtractedRule[]; modelUsed: string }> {
   try {
     const result = await generateObject({
+      abortSignal: abortSignal
+        ? AbortSignal.any([abortSignal, AbortSignal.timeout(90_000)])
+        : AbortSignal.timeout(90_000),
       model: google(modelName),
       schema: extractionResponseSchema,
       system:
@@ -70,8 +80,10 @@ export async function extractRulesFromPdf(
       // 1. Remove duplicate and out-of-bounds page numbers
       const validPages = Array.from(
         new Set(
-          rule.sourcePages.filter((p) => Number.isInteger(p) && p >= 1 && p <= pageCount)
-        )
+          rule.sourcePages.filter(
+            (p) => Number.isInteger(p) && p >= 1 && p <= pageCount,
+          ),
+        ),
       ).sort((a, b) => a - b);
 
       if (validPages.length === 0) {
@@ -80,7 +92,9 @@ export async function extractRulesFromPdf(
 
       // 2. Deduplicate keywords (max 20)
       const validKeywords = Array.from(
-        new Set(rule.keywords.map((k) => k.trim().toLowerCase()).filter(Boolean))
+        new Set(
+          rule.keywords.map((k) => k.trim().toLowerCase()).filter(Boolean),
+        ),
       ).slice(0, 20);
 
       if (validKeywords.length === 0) {
@@ -112,7 +126,7 @@ export async function extractRulesFromPdf(
     if (error instanceof AppError) throw error;
     console.error("Gemini extraction error:", (error as Error).message);
     throw new UpstreamFailureError(
-      "Failed to extract compliance rules from document through upstream AI model"
+      "Failed to extract compliance rules from document through upstream AI model",
     );
   }
 }

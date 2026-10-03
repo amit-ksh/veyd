@@ -68,7 +68,10 @@ Milestone 10 records acceptance of the original single-context release. The foll
 | 12 | [Document context removal](12-document-context-removal.md) | Authorized document/rule/asset cleanup with retained historical citation origins | Removed context is unreachable while old citations remain attributable |
 | 13 | [Automatically generated project handbook](13-project-handbook.md) | Cited project book with contents, subject index, reading progress, PDF, and MCP reads | Web and PDF regenerate from current project sources without cross-project or removed content |
 | 14 | [Project reader and UI refinement](14-project-reader-and-ui-refinement.md) | Persisted AI-drafted A5 book, PDF/offline HTML, generic UI, history, loading states, name/file upload, token-copy repair | Source attribution, isolation, exports and desktop/mobile interactions are verified |
+| 15 | [Chat document ingestion](15-chat-document-ingestion.md) | Confirmed local/research PDF file cards and project ingestion from chat | Ownership, secure downloads, saved receipts and unpublished extraction are verified |
 
 For the extended product, the project-bound credential contract in Milestone 11 replaces the global `MCP_TOOL_SECRET` boundary above. The original statement remains the historical Milestone 0–10 contract.
 
 Milestone 14 supersedes the deterministic-only handbook authoring, history-list exclusion and required Industry input for the user's approved follow-up scope. Read its contract when working on the refined product UI.
+
+Milestone 15 adds user-confirmed web-PDF import. Chat research itself still never writes project knowledge autonomously; human publication remains required.

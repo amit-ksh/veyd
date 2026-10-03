@@ -1,4 +1,7 @@
 import { getServerConfig } from "../config";
+import { discoverPdfFiles } from "@/lib/chat-files/discovery";
+export { isOfficialRegulatoryDomain } from "./source-authority";
+import { isOfficialRegulatoryDomain } from "./source-authority";
 import type {
   SearchExternalRegulationsInput,
   SearchExternalRegulationsOutput,
@@ -9,7 +12,7 @@ if (typeof window !== "undefined") {
   throw new Error("Cannot import server firecrawl client in client-side code");
 }
 
-const FIRECRAWL_API_ENDPOINT = "https://api.firecrawl.dev/v1/search";
+const FIRECRAWL_API_ENDPOINT = "https://api.firecrawl.dev/v2/search";
 const MAX_MARKDOWN_CHARS_PER_RESULT = 2000;
 const TIMEOUT_MS = 10000;
 
@@ -28,7 +31,10 @@ const PROMPT_INJECTION_PATTERNS = [
 /**
  * Neutralizes potential prompt injection patterns and truncates scraped markdown.
  */
-export function sanitizeScrapedContent(raw: string, maxLength: number = MAX_MARKDOWN_CHARS_PER_RESULT): string {
+export function sanitizeScrapedContent(
+  raw: string,
+  maxLength: number = MAX_MARKDOWN_CHARS_PER_RESULT,
+): string {
   if (!raw) return "";
 
   let cleaned = raw;
@@ -40,7 +46,9 @@ export function sanitizeScrapedContent(raw: string, maxLength: number = MAX_MARK
   cleaned = cleaned.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "");
 
   if (cleaned.length > maxLength) {
-    cleaned = cleaned.slice(0, maxLength) + "\n\n... [Content truncated for compliance bounds]";
+    cleaned =
+      cleaned.slice(0, maxLength) +
+      "\n\n... [Content truncated for compliance bounds]";
   }
 
   return cleaned.trim();
@@ -59,13 +67,13 @@ function extractDomain(rawUrl: string): string {
 }
 
 /**
- * Executes a single Firecrawl v1/v2 search call with timeout and abort support.
+ * Executes a single Firecrawl v2 search call with timeout and abort support.
  */
 async function callFirecrawlApi(
   query: string,
   includeDomains: string[] | null,
   apiKey: string,
-  clientSignal?: AbortSignal
+  clientSignal?: AbortSignal,
 ): Promise<ExternalWebResultItem[]> {
   const timeoutSignal = AbortSignal.timeout(TIMEOUT_MS);
   const combinedSignal = clientSignal
@@ -87,7 +95,7 @@ async function callFirecrawlApi(
   const res = await fetch(FIRECRAWL_API_ENDPOINT, {
     method: "POST",
     headers: {
-      "Authorization": `Bearer ${apiKey}`,
+      Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify(requestBody),
@@ -96,7 +104,9 @@ async function callFirecrawlApi(
 
   if (!res.ok) {
     const errorText = await res.text().catch(() => "");
-    throw new Error(`Firecrawl API error (status ${res.status}): ${errorText.slice(0, 200)}`);
+    throw new Error(
+      `Firecrawl API error (status ${res.status}): ${errorText.slice(0, 200)}`,
+    );
   }
 
   const json = await res.json();
@@ -105,7 +115,7 @@ async function callFirecrawlApi(
     url?: string;
     description?: string;
     markdown?: string;
-  }> = Array.isArray(json?.data) ? json.data : [];
+  }> = Array.isArray(json?.data?.web) ? json.data.web : [];
 
   return rawData
     .filter((item) => item && (item.url || item.title))
@@ -115,7 +125,9 @@ async function callFirecrawlApi(
       const url = item.url?.trim() || "";
       const domain = extractDomain(url);
       const snippet = item.description?.trim() || "";
-      const sanitized = sanitizeScrapedContent(item.markdown || snippet || title);
+      const sanitized = sanitizeScrapedContent(
+        item.markdown || snippet || title,
+      );
 
       // Wrap in clear untrusted source boundary
       const boxedMarkdown = `[BEGIN UNTRUSTED EXTERNAL WEB CONTENT: ${title} (${url})]\n${sanitized}\n[END UNTRUSTED EXTERNAL WEB CONTENT]`;
@@ -126,21 +138,13 @@ async function callFirecrawlApi(
         snippet,
         markdown: boxedMarkdown,
         domain,
+        files: discoverPdfFiles(
+          title,
+          url,
+          sanitizeScrapedContent(item.markdown || "", 50_000),
+        ),
       };
     });
-}
-
-export function isOfficialRegulatoryDomain(domain: string): boolean {
-  const d = domain.toLowerCase();
-  return (
-    d.endsWith(".gov") ||
-    d.includes(".gov.") ||
-    d.endsWith(".mil") ||
-    d.endsWith(".europa.eu") ||
-    d === "who.int" ||
-    d === "iso.org" ||
-    d === "un.org"
-  );
 }
 
 /**
@@ -149,7 +153,7 @@ export function isOfficialRegulatoryDomain(domain: string): boolean {
  */
 export async function searchExternalRegulations(
   input: SearchExternalRegulationsInput,
-  signal?: AbortSignal
+  signal?: AbortSignal,
 ): Promise<SearchExternalRegulationsOutput> {
   const trimmed = input.query?.trim();
   if (!trimmed) {
@@ -165,7 +169,8 @@ export async function searchExternalRegulations(
   } catch (err) {
     return {
       sourceKind: "secondary-web",
-      warning: "External regulatory search is currently unavailable due to server configuration.",
+      warning:
+        "External regulatory search is currently unavailable due to server configuration.",
       results: [],
       error: err instanceof Error ? err.message : "Configuration error",
     };
@@ -193,10 +198,12 @@ export async function searchExternalRegulations(
       fullQuery,
       null, // unrestricted: search anywhere on the web
       apiKey,
-      signal
+      signal,
     );
 
-    const hasOfficialDomain = results.some((r) => isOfficialRegulatoryDomain(r.domain));
+    const hasOfficialDomain = results.some((r) =>
+      isOfficialRegulatoryDomain(r.domain),
+    );
     const sourceKind = hasOfficialDomain ? "official-web" : "secondary-web";
 
     return {
@@ -207,7 +214,8 @@ export async function searchExternalRegulations(
       results,
     };
   } catch (error) {
-    const errMessage = error instanceof Error ? error.message : "External search failed";
+    const errMessage =
+      error instanceof Error ? error.message : "External search failed";
     return {
       sourceKind: "secondary-web",
       warning: "External regulatory search is currently unavailable.",

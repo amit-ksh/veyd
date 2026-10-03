@@ -1,6 +1,8 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRef } from "react";
+import type { ChatFileInput } from "@/lib/chat-files/types";
 import {
   clientApi,
   type ProjectItem,
@@ -124,6 +126,47 @@ export function useIngestDocument(userId?: string) {
       });
     },
   });
+}
+export function useChatFileImport(userId: string) {
+  const client = useQueryClient();
+  const inputs = useRef(new Map<string, ChatFileInput>());
+  const mutation = useMutation({
+    gcTime: 0,
+    mutationFn: (identity: { projectId: string; requestId: string }) => {
+      const input = inputs.current.get(identity.requestId);
+      if (!input)
+        throw new ClientApiError(
+          "The import request expired. Please confirm it again.",
+        );
+      return clientApi.ingestChatFile(input);
+    },
+    onSettled: async (_, __, identity) => {
+      inputs.current.delete(identity.requestId);
+      await Promise.all([
+        client.invalidateQueries({
+          queryKey: queryKeys.documents(userId, identity.projectId),
+          exact: true,
+        }),
+        client.invalidateQueries({
+          queryKey: queryKeys.handbook(userId, identity.projectId),
+          exact: true,
+        }),
+        client.invalidateQueries({
+          queryKey: queryKeys.conversations(userId, identity.projectId),
+        }),
+      ]);
+    },
+  });
+  return {
+    ...mutation,
+    ingest: (input: ChatFileInput) => {
+      inputs.current.set(input.requestId, input);
+      return mutation.mutateAsync({
+        projectId: input.projectId,
+        requestId: input.requestId,
+      });
+    },
+  };
 }
 export function useRemoveDocument(userId?: string) {
   const client = useQueryClient();

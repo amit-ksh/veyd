@@ -45,6 +45,13 @@ import { Skeleton, ContentSkeleton } from "@/components/ui/skeleton";
 import { ChatHistory } from "@/components/chat-history";
 import { DocumentRow } from "@/components/document-row";
 import { ChatMarkdown } from "@/components/chat-markdown";
+import { ChatFileCards } from "@/components/chat-file-cards";
+import { ChatFileIngestion } from "@/components/chat-file-ingestion";
+import {
+  readMessageMetadata,
+  type ChatFile,
+  type ChatFileResult,
+} from "@/lib/chat-files/types";
 import {
   useProjects,
   useDocuments,
@@ -124,6 +131,12 @@ export function AppShell({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const mobileDropdownRef = useRef<HTMLDivElement>(null);
   const [mobileHistoryOpen, setMobileHistoryOpen] = useState(false);
+  const [chatImportBusy, setChatImportBusy] = useState(false);
+  const [chatFileSessionKey, setChatFileSessionKey] = useState(0);
+  const [webFileTarget, setWebFileTarget] = useState<{
+    file: ChatFile;
+    messageId: string;
+  } | null>(null);
 
   // Sync tab with route props
   useEffect(() => {
@@ -184,6 +197,8 @@ export function AppShell({
 
   // Switch project handler
   const handleSelectProject = (projectId: string) => {
+    setWebFileTarget(null);
+    setChatImportBusy(false);
     void queryClient.cancelQueries({
       queryKey: queryKeys.project(userId, currentProjectId),
     });
@@ -279,6 +294,8 @@ export function AppShell({
     stop();
     setMessages([]);
     hydratedVersion.current = "";
+    setWebFileTarget(null);
+    setChatImportBusy(false);
     setRequestedConversationId(initialConversationId || null);
     setCurrentConversationId(initialConversationId || null);
   }, [initialConversationId, initialProjectId, stop, setMessages]);
@@ -304,6 +321,14 @@ export function AppShell({
           { type: "text" as const, text: m.content },
           ...(m.citations.length
             ? [{ type: "data-citations" as const, data: m.citations }]
+            : []),
+          ...(m.files?.length
+            ? [
+                {
+                  type: "data-chat-files" as const,
+                  data: { messageId: m.id, files: m.files },
+                },
+              ]
             : []),
         ],
       })),
@@ -410,6 +435,9 @@ export function AppShell({
   }, [messages, currentConversationId, currentProjectId]);
 
   const handleStartNewSession = () => {
+    if (chatImportBusy) return;
+    setWebFileTarget(null);
+    setChatFileSessionKey((key) => key + 1);
     stop();
     setMessages([]);
     setCurrentConversationId(null);
@@ -427,7 +455,7 @@ export function AppShell({
 
   const handleSendPrompt = (textOverride?: string) => {
     const textToSend = (textOverride ?? searchQuery).trim();
-    if (!textToSend || isStreaming) return;
+    if (!textToSend || isStreaming || chatImportBusy) return;
     if (!currentProjectId) {
       setShowAddProjectModal(true);
       return;
@@ -471,6 +499,77 @@ export function AppShell({
       }
     }
     return citations;
+  };
+  const messageFiles = (parts: unknown[]) => {
+    for (const part of parts) {
+      if (
+        part &&
+        typeof part === "object" &&
+        "type" in part &&
+        part.type === "data-chat-files" &&
+        "data" in part
+      ) {
+        const data = part.data as { messageId?: string; files?: unknown };
+        if (typeof data?.messageId === "string")
+          return {
+            messageId: data.messageId,
+            files: readMessageMetadata({
+              version: 2,
+              citations: [],
+              files: data.files,
+            }).files,
+          };
+      }
+    }
+    return null;
+  };
+  const handleImportedChatFile = (result: ChatFileResult) => {
+    setCurrentConversationId(result.conversationId);
+    let found = false;
+    setMessages((previous) => {
+      const next = previous.map((message) => {
+        const data = messageFiles(message.parts);
+        if (
+          message.id !== result.messageId &&
+          data?.messageId !== result.messageId
+        )
+          return message;
+        found = true;
+        return {
+          ...message,
+          parts: [
+            ...message.parts.filter((part) => part.type !== "data-chat-files"),
+            {
+              type: "data-chat-files" as const,
+              data: {
+                messageId: result.messageId,
+                files: data?.files.map((file) =>
+                  file.id === result.file.id ? result.file : file,
+                ) || [result.file],
+              },
+            },
+          ],
+        };
+      });
+      if (!found)
+        next.push({
+          id: result.messageId,
+          role: "user",
+          parts: [
+            { type: "text", text: "PDF import: " + result.file.title },
+            {
+              type: "data-chat-files",
+              data: { messageId: result.messageId, files: [result.file] },
+            },
+          ],
+        });
+      return next;
+    });
+    window.history.replaceState(
+      null,
+      "",
+      "/projects/" + currentProjectId + "/chat/" + result.conversationId,
+    );
   };
 
   // Determine current tool activity state label for polite live announcements
@@ -1270,13 +1369,16 @@ export function AppShell({
                         type="text"
                         autoFocus
                         value={searchQuery}
+                        disabled={chatImportBusy}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         placeholder="Ask about your documents or research a topic…"
                         className="flex-1 py-3 text-sm bg-transparent outline-none placeholder:text-slate-400 text-[#020618]"
                       />
                       <button
                         type="submit"
-                        disabled={!searchQuery.trim() || isStreaming}
+                        disabled={
+                          !searchQuery.trim() || isStreaming || chatImportBusy
+                        }
                         aria-label="Send research question"
                         className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-[#00c9d2] text-[#020618] font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#00b0b8] transition-colors shadow-xs focus-visible:ring-2 focus-visible:ring-[#020618]"
                       >
@@ -1306,6 +1408,7 @@ export function AppShell({
                       <button
                         key={suggestion}
                         type="button"
+                        disabled={chatImportBusy}
                         onClick={() => {
                           setSearchQuery(suggestion);
                           handleSendPrompt(suggestion);
@@ -1332,6 +1435,7 @@ export function AppShell({
                     <button
                       type="button"
                       onClick={handleStartNewSession}
+                      disabled={chatImportBusy}
                       className="inline-flex items-center gap-1.5 px-2.5 py-1 text-slate-600 hover:text-[#020618] hover:bg-slate-100 rounded-lg transition"
                     >
                       <RotateCcw className="w-3.5 h-3.5" />
@@ -1351,6 +1455,7 @@ export function AppShell({
                       const citations = extractMessageCitations(
                         (m as any).parts,
                       );
+                      const chatFiles = messageFiles(m.parts);
 
                       return (
                         <div
@@ -1386,6 +1491,19 @@ export function AppShell({
                             </div>
 
                             {/* Citations List */}
+                            {chatFiles && chatFiles.files.length > 0 && (
+                              <ChatFileCards
+                                files={chatFiles.files}
+                                projectId={currentProjectId}
+                                disabled={isStreaming || chatImportBusy}
+                                onIngest={(file) =>
+                                  setWebFileTarget({
+                                    file,
+                                    messageId: chatFiles.messageId,
+                                  })
+                                }
+                              />
+                            )}
                             {!isUser && citations.length > 0 && (
                               <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3 space-y-2 text-xs">
                                 <div className="flex items-center gap-1.5 font-bold text-slate-700 text-[11px] uppercase tracking-wider">
@@ -1545,14 +1663,16 @@ export function AppShell({
                           id="followup-prompt-input"
                           type="text"
                           value={searchQuery}
-                          disabled={isStreaming}
+                          disabled={isStreaming || chatImportBusy}
                           onChange={(e) => setSearchQuery(e.target.value)}
                           placeholder="Ask a follow-up or research another topic…"
                           className="flex-1 py-2 pl-3 text-sm bg-transparent outline-none placeholder:text-slate-400 text-[#020618] disabled:opacity-50"
                         />
                         <button
                           type="submit"
-                          disabled={!searchQuery.trim() || isStreaming}
+                          disabled={
+                            !searchQuery.trim() || isStreaming || chatImportBusy
+                          }
                           aria-label="Send follow-up query"
                           className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-[#00c9d2] text-[#020618] font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#00b0b8] transition-colors shadow-xs focus-visible:ring-2 focus-visible:ring-[#020618]"
                         >
@@ -1852,6 +1972,31 @@ export function AppShell({
               </div>
             </div>
           )}
+          {!children &&
+            activeTab === "chat" &&
+            !loadingConversation &&
+            !conversationLoadError && (
+              <div className="mx-auto mt-4 max-w-3xl">
+                <ChatFileIngestion
+                  key={
+                    currentProjectId +
+                    ":" +
+                    requestedConversationId +
+                    ":" +
+                    chatFileSessionKey
+                  }
+                  userId={session.user.id}
+                  projectId={currentProjectId}
+                  projectName={activeProject?.name || "Project"}
+                  conversationId={currentConversationId}
+                  disabled={isStreaming || !currentProjectId}
+                  webTarget={webFileTarget}
+                  onClearWebTarget={() => setWebFileTarget(null)}
+                  onImported={handleImportedChatFile}
+                  onBusyChange={setChatImportBusy}
+                />
+              </div>
+            )}
         </main>
       </div>
 

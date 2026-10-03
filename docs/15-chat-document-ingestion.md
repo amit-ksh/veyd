@@ -1,0 +1,94 @@
+# Milestone 15 — Confirmed document ingestion from chat
+
+## Approved scope
+
+The user approved both local PDF attachments and PDFs found during web research. Show file cards in Research Chat, with an explicit Add to project knowledge confirmation naming the current project and document. Reuse Documents as the project knowledge page. This extension supersedes the earlier exclusion of confirmed web-PDF imports, not the prohibition on autonomous model writes.
+
+Milestone 14's outstanding live acceptance remains outstanding; this milestone does not mark it accepted. Implement only this extension. Preserve PDF-only limits (10 MB, 100 pages), project ownership, removal tombstones, human publication, read-only MCP, and the existing chat retrieval policy.
+
+## Interaction
+
+- Attach PDF is available in both empty and ongoing chat. A selected file stays local until confirmation; selecting/canceling does not upload, ingest, or invoke AI. One file is confirmed at a time.
+- Show file name, size when known, source, and status. Research PDF links are unverified until fetched and validated; ordinary web pages remain citations.
+- Confirmation contains the editable document name, fixed current project, source link where applicable, and the review requirement. Cancel has no write or paid-ingestion side effects.
+- After confirmation, show Uploading / Adding document progress on the action button, then a saved file card with Open in Documents. Do not claim that extraction publishes knowledge.
+- Extracted entries become searchable by chat, handbook and MCP only after human review/publication. Attachments are not sent as unreviewed PDF context to the chat model.
+- Use existing generic UI styles, safe links, keyboard-accessible focus-contained confirmation, page skeletons and reduced-motion button spinners. Clear selected files/dialogs on project, user and conversation changes. A pending import remains bound to its original authorized project.
+
+## Server and storage contract
+
+- Add project-scoped chat-file upload-token and confirmed-ingest routes. Authenticate and authorize project/conversation before any Blob, external download or AI work.
+- Local PDFs use direct private Blob upload after confirmation. Token issuance validates the authorized project's exact chat upload pathname and limits. The ingest route accepts only that project's chat pathname, never a user-supplied arbitrary fetch URL.
+- Discover PDF links deterministically from actual Firecrawl result URLs and bounded scraped Markdown links, not model prose. Preserve the discovery-page URL and official/secondary label. Store at most ten file candidates per assistant message.
+- Candidate recognition supports `.pdf` paths, FDA's extensionless `/media/<id>/download` endpoints, and links explicitly labeled PDF in source text. These are unvalidated candidates, never proof of file type. Keep the same post-confirmation secure download and PDF validation.
+- External tool outputs tell the model which PDF candidates will become application cards. The model must not simulate cards, buttons or import status in prose, ASCII or code blocks, and must not invent a download link when research returns no candidate.
+- Remote import accepts an owned conversation/message/file identifier. Resolve the URL from the server-stored candidate; reject unknown, cross-project, removed or client-fabricated candidates. The model has no ingestion tool.
+- Download only public HTTPS resources on port 443. Validate all DNS addresses, pin the validated address while retaining TLS hostname verification, and revalidate every redirect (maximum three). Reject credentials, local/private/reserved addresses, unsupported content types, oversized responses (including chunked bodies), and a transfer exceeding twenty seconds. Validate actual PDF bytes/pages before durable storage.
+- Reuse the shared ingestion pipeline for Sanity assets, document status and unpublished extraction. Remote PDF import consumes the existing ingestion quota; local import consumes it at upload-token issuance. Explicit duplicate retries reuse their receipt without repeating successful/uncertain ingestion.
+- Store versioned file metadata in the existing Message.citations JSON column, alongside citations. Continue reading legacy citation arrays. Plain message content and existing citation API fields remain unchanged; add files to conversation responses. No database migration, new dependency or new environment variable is needed.
+- Persist a processing receipt before paid extraction. Serialize imports per project with a time-bounded, production fail-closed Redis lease. Failed or interrupted imports that may have written durable state cannot silently retry and create duplicates; direct the user to Documents/operator review. Validation/download failures before storage can be confirmed again.
+- Retain source attribution and annotate removed file references without restoring active document context. Never persist PDF bytes, Blob locators, scraped page bodies or credentials in message metadata.
+- Keep server routes thin, validate inputs/metadata, mask unexpected upstream failures, and record correlation/project/message/document IDs without source bodies or secrets.
+
+## Cache and affected interfaces
+
+Use the existing typed client API and user/project query keys. On confirmed import settlement, invalidate only the original project's Documents, handbook metadata and conversation/history keys. Reconcile server-returned file status; do not optimistically invent successful ingestion. Query/mutation caches contain metadata, not File objects or temporary Blob URLs.
+
+Affected modules: chat tools/streaming and conversation persistence, shared PDF ingestion, new chat-file metadata/download/lease/service modules, confirmed import routes, chat file-card/confirmation UI, and shared API/mutation hooks. Existing Documents ingestion and MCP remain compatible.
+
+## Manual checkpoint
+
+- [x] Selecting/canceling a local PDF performs no upload, ingestion or AI request (browser fixtures).
+- [ ] Confirm a valid local PDF in new and existing chats; one project document and only drafts are created. Refresh restores its file card.
+- [ ] Find a real PDF through research; confirm its card/source and import it. Refresh restores candidate and result.
+- [x] Repeating the same receipt does not create another document (live); an uncertain interrupted import requires operator review (isolated service fixtures).
+- [x] Reject fabricated/cross-user/cross-project message/file/Blob identifiers without upstream work (isolated service fixtures; real routes also reject unauthenticated requests).
+- [ ] Reject private/loopback/reserved DNS targets, credential URLs, unsafe redirects, HTML, oversized/chunked files, timeout, invalid/encrypted/over-100-page PDFs.
+- [x] Failed extraction remains visible and cannot silently retry after storage (isolated service fixtures); temporary local Blob cleanup occurs (live).
+- [ ] Remove an imported source; historical file card is marked removed and cannot restore active context.
+- [x] Verify desktop/mobile, keyboard confirmation, disabled repeat actions, reduced motion, errors and source links (browser fixtures). Original-project cache invalidation is wired to captured mutation identity and reviewed in source; an in-flight cross-project browser scenario remains unverified.
+- [x] Run strict TypeScript, application/Studio production builds, and schema validation. No unit/integration suite.
+
+## Checkpoint record
+
+Date: 2026-10-03. Baseline: 7ea81afbd24ad7de6531e1e2d886c6247631fb7b. Result: implementation complete; checkpoint partially verified, full live acceptance pending. Milestone 14 is not newly accepted by this work.
+
+### How to use
+
+Open Research Chat in the destination project. Select **Attach PDF**, inspect the local file card, then choose **Add to project knowledge**. Confirm its name and destination. For a PDF discovered by research, use the same action on its source card. Selecting a file or canceling the initial confirmation makes no upload or paid call. After a completed import, **Open in Documents** leads to the existing knowledge page. Review and publish extracted entries in Studio before using them through chat, handbook or MCP.
+
+### Recorded evidence
+
+- `pnpm exec tsc --noEmit --incremental false`, `pnpm run build`, `pnpm --dir sanity run build`, `pnpm --dir sanity exec sanity schema validate`, `pnpm exec prisma validate`, and `git diff --check` passed. Studio validation reported zero errors/warnings. An isolated temporary Next output directory avoided disturbing the existing development server; its configuration override is not shipped.
+- The reusable `chat-document-ingestion` repository skill passed the skill format validator. No new package, environment variable, SQL migration, unit suite or integration suite was added; `.env` and the configured Gemini model were not changed. `.env.example` comments describe confirmed research imports and the production Redis lease requirement.
+- With user approval, two clearly labeled, one-page W3C dummy-PDF documents were added to the existing **Test** project (`cmus56l50000fb7yshecdbbot`): public-source document `doc.1791037078625.0cda1036`, and private-upload document `doc.1791037245003.a8dce712`. Chat `cmush890u0001b7ngzl4ayl7w` retains both receipts. Both are ready, each extracted zero rules, and no rules were published. Existing project documents were not changed or removed. Repeated receipts returned the original document/message identities; reopening the saved chat returned both ready file cards.
+- The exact local temporary upload pathname was absent from Vercel Blob after import and duplicate retry (`list` returned zero matches). Its bytes were read server-side with the private-store token, never exposed in saved-message metadata.
+- A real Firecrawl v2 search returned HTTP 401, **Invalid token**, using the configured key. Therefore the public-PDF live check used a server-discovered card from the verified W3C URL, explicitly labeled as a direct-source fixture, not a successful Firecrawl research result. This is not end-to-end live research evidence. Supply a valid `FIRECRAWL_API_KEY` and repeat research acceptance before release; do not paste credentials into chat.
+- Forty-one temporary manual security checks covered public/private/reserved addresses, mixed DNS, credential/port/scheme URLs, private redirects and redirect limits, HTML, declared/chunked oversize bodies, pinned TLS/Host identity without authorization forwarding, cancellation, deterministic discovery/deduplication, metadata compatibility, malformed PDF bytes and 101-page rejection. Twelve isolated service checks covered ownership/confirmation/candidate boundaries, uncertain receipts, post-storage extraction failure, duplicate failure suppression and historical removal annotations. These are synthetic fixtures, not a committed automated test suite or proof against every live upstream failure.
+- Twelve production-preview browser checks used labeled synthetic API fixtures. They covered local selection/cancel without POST, Cancel focus/Escape, guarded loading confirmation, saved-card refresh, safe metadata-only web import, visible failures, project-navigation clearing, and JavaScript errors. Captures at 1440px, 390px and 320px were opened and visually inspected; no horizontal overflow was observed at 320px. A fresh scoped UI review returned **ship**, with no material fixes. The UI skill shaped focus containment, honest states and responsive wrapping; it did not redesign unrelated routes.
+
+### Remaining acceptance limits
+
+Do not mark full acceptance complete yet: Firecrawl discovery needs a valid key; a local import into a brand-new chat needs a live check; authenticated browser-to-Blob token issuance was not exercised end to end (live private ingress used the server SDK); encrypted-PDF and elapsed-timeout behavior were not manually replayed; removal and post-storage failures were exercised with isolated fixtures rather than deleting a live document or provoking provider failure; and project switching during an active import was inspected in source, not replayed in the browser. The dummy PDF cannot prove extraction of meaningful nonzero rule drafts. Abandoned uploads that never reach the ingest handler may still need the existing temporary-store operational cleanup; token expiry alone does not delete Blob objects.
+
+### Follow-up: missing research PDF cards
+
+2026-10-03: the user reported an AI-written “PDF Review Card” code block instead of an actionable application card. A temporary reproduction using the screenshot's FDA `/media/163454/download` source link returned zero candidates because discovery required a `.pdf` filename extension. After the recognition fix, the same reproduction returned one `available` candidate. This only proves recognition, not that the screenshot's URL is a valid/current PDF. The current FDA guidance page links to `/media/117410/download`; the official download was verified separately through the primary source listed below.
+
+The external-tool response now includes discovered `pdfFiles` for the model, and the chat instructions prohibit fabricated text cards and memory-generated download URLs. The application still renders only server-saved source metadata; old model-written card text is not converted into a trusted import action.
+
+Verification: strict TypeScript and the production app build passed. Fourteen temporary source/adapter/metadata checks passed, including extensionless links, ordinary-page exclusion, HTTPS/credential/port checks, deduplication and saved-card restoration. Forty-one existing manual security checks were replayed successfully. A browser fixture using the real discovery function's metadata showed the actual Add to project knowledge button, correct FDA source link, confirmation, refresh persistence and mobile containment; desktop/mobile captures were visually inspected. Two real Gemini runs with explicitly synthetic research success/failure responses followed the retrieval sequence and did not draw a fake card; the failure run did not invent an FDA download URL. These model checks verified the card behavior only, not the factual accuracy of every generated statement. No new live document was ingested or published by this follow-up.
+
+The local Firecrawl search still returned 401 Invalid token. The user requested a key update, but no replacement key has been supplied through the local configuration at this checkpoint. `.env` was not rewritten. Live research-to-ingestion acceptance remains pending a valid key and must not be marked passed from these fixtures.
+
+Subsequent same-day read-only checks: a simple Firecrawl v2 search returned 200 OK with one result, confirming that the local key is now accepted; the full search-and-scrape check timed out. The blank citation PDF matched the seed script's placeholder bytes exactly (312 bytes, one empty page), despite its record claiming 12 pages and the sample rule citing pages 4, 5 and 8. Rendering confirmed the empty page. The current sample rule suppressed Firecrawl and produced zero import candidates under the existing retrieval policy. Removing the sample document/rules or allowing an explicit PDF-discovery exception requires the user's decision; neither change has been made. The agent did not rewrite `.env`. Full live discovery/import acceptance remains pending.
+
+### Primary API references
+
+Accessed 2026-10-03: [Firecrawl v2 search](https://docs.firecrawl.dev/api-reference/endpoint/search) specifies the v2 endpoint and `data.web` envelope; [Node HTTPS](https://nodejs.org/api/https.html) documents request/TLS options; [Node BlockList](https://nodejs.org/api/net.html#class-netblocklist) and the [IANA IPv6 special-purpose registry](https://www.iana.org/assignments/iana-ipv6-special-registry/) informed conservative address screening. The live sample was the [W3C dummy PDF](https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf), a validation fixture, not project-domain guidance.
+
+FDA extensionless-download evidence, accessed 2026-10-03: the [official food-allergen labeling guidance page](https://www.fda.gov/regulatory-information/search-fda-guidance-documents/guidance-industry-questions-and-answers-regarding-food-allergen-labeling-edition-5) links to the [January 2025 guidance PDF](https://www.fda.gov/media/117410/download), served as `application/pdf` with 27 pages.
+
+## Continue with another model
+
+Read AGENTS.md, the docs index, shared protocol, .agents/skills/chat-document-ingestion/SKILL.md and this milestone completely. Implement or verify only Milestone 15. Preserve existing changes, secrets and publication boundaries. Ask before any new product choice. Report actual build/manual evidence and remaining limits; stop for review.
