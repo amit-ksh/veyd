@@ -44,7 +44,10 @@ import { RemoveDocumentModal } from "@/components/remove-document-modal";
 import { HandbookView } from "@/components/handbook-view";
 import { Skeleton, ContentSkeleton } from "@/components/ui/skeleton";
 import { AppSkeleton } from "@/components/ui/app-skeleton";
-import { CircularLoader, ProcessingOverlay } from "@/components/ui/circular-loader";
+import {
+  CircularLoader,
+  ProcessingOverlay,
+} from "@/components/ui/circular-loader";
 import { ChatHistory } from "@/components/chat-history";
 import { DocumentRow } from "@/components/document-row";
 import { ChatMarkdown } from "@/components/chat-markdown";
@@ -1356,7 +1359,11 @@ export function AppShell({
                       What would you like to research today?
                     </h1>
                     <p className="text-xs sm:text-sm text-slate-500 max-w-lg mx-auto leading-relaxed">
-                      Ask questions about <strong className="text-slate-800">{activeProject?.name}</strong> and get answers verified against human-reviewed sources.
+                      Ask questions about{" "}
+                      <strong className="text-slate-800">
+                        {activeProject?.name}
+                      </strong>{" "}
+                      and get answers verified against human-reviewed sources.
                     </p>
                   </div>
 
@@ -1501,7 +1508,8 @@ export function AppShell({
                         (m as any).parts,
                       );
                       const chatFiles = messageFiles(m.parts);
-                      const isCopied = copiedMessageId === (m.id || String(index));
+                      const isCopied =
+                        copiedMessageId === (m.id || String(index));
 
                       return (
                         <div
@@ -1539,16 +1547,25 @@ export function AppShell({
                                 {textContent && (
                                   <button
                                     type="button"
-                                    onClick={() => handleCopyMessage(m.id || String(index), textContent)}
+                                    onClick={() =>
+                                      handleCopyMessage(
+                                        m.id || String(index),
+                                        textContent,
+                                      )
+                                    }
                                     className={`flex items-center gap-1 text-[11px] p-1 rounded-md transition ${
-                                      isUser ? "text-slate-400 hover:text-white hover:bg-slate-800" : "text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+                                      isUser
+                                        ? "text-slate-400 hover:text-white hover:bg-slate-800"
+                                        : "text-slate-400 hover:text-slate-700 hover:bg-slate-100"
                                     }`}
                                     title="Copy message"
                                   >
                                     {isCopied ? (
                                       <>
                                         <Check className="w-3 h-3 text-emerald-400" />
-                                        <span className="text-emerald-400 text-[10px]">Copied</span>
+                                        <span className="text-emerald-400 text-[10px]">
+                                          Copied
+                                        </span>
                                       </>
                                     ) : (
                                       <Copy className="w-3 h-3" />
@@ -1563,7 +1580,11 @@ export function AppShell({
                                 />
                               ) : (
                                 <div className="py-2">
-                                  <CircularLoader size="sm" variant="brand" label="Synthesizing verified response…" />
+                                  <CircularLoader
+                                    size="sm"
+                                    variant="brand"
+                                    label="Synthesizing verified response…"
+                                  />
                                 </div>
                               )}
                             </div>
@@ -1670,7 +1691,9 @@ export function AppShell({
                       aria-live="polite"
                     >
                       <CircularLoader size="xs" variant="brand" />
-                      <span className="font-medium">{getToolActivityLabel()}</span>
+                      <span className="font-medium">
+                        {getToolActivityLabel()}
+                      </span>
                     </div>
                   )}
 
@@ -1759,9 +1782,7 @@ export function AppShell({
                         ) : (
                           <button
                             type="submit"
-                            disabled={
-                              !searchQuery.trim() || chatImportBusy
-                            }
+                            disabled={!searchQuery.trim() || chatImportBusy}
                             aria-label="Send follow-up query"
                             className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-[#00c9d2] hover:bg-[#00b0b8] text-[#020618] font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-xs focus-visible:ring-2 focus-visible:ring-[#020618]"
                           >
@@ -1797,7 +1818,8 @@ export function AppShell({
                     Project Documents
                   </h1>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Review and manage compliance sources bound to <strong>{activeProject?.name}</strong>.
+                    Review and manage compliance sources bound to{" "}
+                    <strong>{activeProject?.name}</strong>.
                   </p>
                 </div>
                 <button
@@ -1819,25 +1841,44 @@ export function AppShell({
               {/* Metrics Grid */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs">
-                  <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Documents</div>
-                  <div className="text-xl font-bold text-slate-900 mt-1">{documents.length}</div>
+                  <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                    Documents
+                  </div>
+                  <div className="text-xl font-bold text-slate-900 mt-1">
+                    {documents.length}
+                  </div>
                 </div>
                 <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs">
-                  <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Ready</div>
+                  <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                    Ready
+                  </div>
                   <div className="text-xl font-bold text-emerald-600 mt-1">
-                    {documents.filter((d) => d.processingStatus === "ready").length}
+                    {
+                      documents.filter((d) => d.processingStatus === "ready")
+                        .length
+                    }
                   </div>
                 </div>
                 <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs">
-                  <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Extracted Rules</div>
+                  <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                    Extracted Rules
+                  </div>
                   <div className="text-xl font-bold text-[#008f96] mt-1">
-                    {documents.reduce((acc, d) => acc + (d.extractedRuleCount || 0), 0)}
+                    {documents.reduce(
+                      (acc, d) => acc + (d.extractedRuleCount || 0),
+                      0,
+                    )}
                   </div>
                 </div>
                 <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs">
-                  <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Published Rules</div>
+                  <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                    Published Rules
+                  </div>
                   <div className="text-xl font-bold text-indigo-600 mt-1">
-                    {documents.reduce((acc, d) => acc + (d.publishedRuleCount || 0), 0)}
+                    {documents.reduce(
+                      (acc, d) => acc + (d.publishedRuleCount || 0),
+                      0,
+                    )}
                   </div>
                 </div>
               </div>
@@ -1851,10 +1892,7 @@ export function AppShell({
                   />
                 )}
                 {uploadStatus === "extracting" && (
-                  <ProcessingOverlay
-                    label="Extracting compliance rules…"
-                    sublabel="Gemini is analyzing document clauses and generating rule drafts"
-                  />
+                  <ProcessingOverlay label="Extracting rules…" />
                 )}
 
                 <div className="flex items-center justify-between">
@@ -1864,7 +1902,8 @@ export function AppShell({
                       <span>Add a document</span>
                     </h2>
                     <p className="text-xs text-slate-500">
-                      PDF up to 10 MB &bull; Up to 100 pages &bull; Bound to {activeProject?.name}
+                      PDF up to 10 MB &bull; Up to 100 pages &bull; Bound to{" "}
+                      {activeProject?.name}
                     </p>
                   </div>
                 </div>
@@ -1912,7 +1951,8 @@ export function AppShell({
                         {uploadFile.name}
                       </div>
                       <div className="text-[11px] text-slate-500">
-                        {formatBytes(uploadFile.size)} &bull; Click or drag to replace
+                        {formatBytes(uploadFile.size)} &bull; Click or drag to
+                        replace
                       </div>
                     </div>
                   ) : (
@@ -1967,7 +2007,8 @@ export function AppShell({
                     >
                       <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                       <span>
-                        Successfully ingested &quot;{uploadSuccessSummary.title}&quot; and extracted{" "}
+                        Successfully ingested &quot;{uploadSuccessSummary.title}
+                        &quot; and extracted{" "}
                         {uploadSuccessSummary.extractedCount} rule draft(s).
                       </span>
                     </div>
@@ -1984,7 +2025,8 @@ export function AppShell({
                       }
                       className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#020618] hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-semibold transition shadow-xs focus-visible:ring-2 focus-visible:ring-[#00c9d2]"
                     >
-                      {uploadStatus === "uploading" || uploadStatus === "extracting" ? (
+                      {uploadStatus === "uploading" ||
+                      uploadStatus === "extracting" ? (
                         <>
                           <CircularLoader size="xs" variant="white" />
                           <span>Processing…</span>
@@ -2074,7 +2116,11 @@ export function AppShell({
                     className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-400"
                     aria-live="polite"
                   >
-                    <CircularLoader size="md" variant="brand" label="Loading documents…" />
+                    <CircularLoader
+                      size="md"
+                      variant="brand"
+                      label="Loading documents…"
+                    />
                   </div>
                 ) : docsError &&
                   documents.length === 0 ? null : documents.length === 0 ? (
@@ -2090,7 +2136,9 @@ export function AppShell({
                 ) : (
                   <div className="space-y-3">
                     {documents
-                      .filter((d) => d.title.toLowerCase().includes(docSearch.toLowerCase()))
+                      .filter((d) =>
+                        d.title.toLowerCase().includes(docSearch.toLowerCase()),
+                      )
                       .map((doc) => (
                         <DocumentRow
                           key={doc._id}
@@ -2099,7 +2147,9 @@ export function AppShell({
                         />
                       ))}
                     {docSearch &&
-                      documents.filter((d) => d.title.toLowerCase().includes(docSearch.toLowerCase())).length === 0 && (
+                      documents.filter((d) =>
+                        d.title.toLowerCase().includes(docSearch.toLowerCase()),
+                      ).length === 0 && (
                         <div className="text-center py-8 bg-white rounded-2xl border border-slate-200 p-6 text-slate-500 text-xs">
                           No documents matching &quot;{docSearch}&quot;
                         </div>
