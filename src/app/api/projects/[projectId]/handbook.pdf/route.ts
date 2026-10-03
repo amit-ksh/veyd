@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { projectId: string } }
+  { params }: { params: { projectId: string } },
 ) {
   const correlationId = crypto.randomUUID();
   const { projectId } = params;
@@ -27,7 +27,7 @@ export async function GET(
         "Authentication required.",
         401,
         undefined,
-        correlationId
+        correlationId,
       );
     }
 
@@ -46,7 +46,7 @@ export async function GET(
         "Project not found.",
         404,
         undefined,
-        correlationId
+        correlationId,
       );
     }
 
@@ -63,7 +63,7 @@ export async function GET(
         "Handbook snapshot is missing, stale, or out of date. Please generate the handbook before downloading.",
         409,
         { status: state.status },
-        correlationId
+        correlationId,
       );
     }
 
@@ -71,11 +71,12 @@ export async function GET(
     const pdfBytes = await generateHandbookPdf(state.handbook);
 
     // Sanitize filename
-    const safeName = project.name
-      .toLowerCase()
-      .replace(/[^a-z0-9_-]+/g, "-")
-      .replace(/^-+|-+$/g, "") || "project";
-    const filename = `${safeName}-compliance-handbook.pdf`;
+    const safeName =
+      project.name
+        .toLowerCase()
+        .replace(/[^a-z0-9_-]+/g, "-")
+        .replace(/^-+|-+$/g, "") || "project";
+    const filename = `${safeName}-handbook.pdf`;
 
     return new Response(Buffer.from(pdfBytes), {
       status: 200,

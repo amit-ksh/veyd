@@ -1,10 +1,14 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { AlertTriangle, Trash2, Loader2, X, AlertCircle } from "lucide-react";
+import { AlertTriangle, Trash2, X, AlertCircle } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import type { ComplianceDocumentListItem } from "@/lib/sanity/types";
+import { useRemoveDocument } from "@/hooks/use-app-queries";
+import { apiErrorMessage } from "@/lib/client-api";
 
 interface RemoveDocumentModalProps {
+  userId: string;
   isOpen: boolean;
   onClose: () => void;
   documentItem: ComplianceDocumentListItem | null;
@@ -13,13 +17,15 @@ interface RemoveDocumentModalProps {
 }
 
 export function RemoveDocumentModal({
+  userId,
   isOpen,
   onClose,
   documentItem,
   projectId,
   onDocumentRemoved,
 }: RemoveDocumentModalProps) {
-  const [loading, setLoading] = useState(false);
+  const removeDocument = useRemoveDocument(userId);
+  const loading = removeDocument.isPending;
   const [error, setError] = useState<string | null>(null);
   const cancelBtnRef = useRef<HTMLButtonElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
@@ -27,7 +33,6 @@ export function RemoveDocumentModal({
   useEffect(() => {
     if (isOpen) {
       setError(null);
-      setLoading(false);
       setTimeout(() => cancelBtnRef.current?.focus(), 50);
     }
   }, [isOpen]);
@@ -48,48 +53,23 @@ export function RemoveDocumentModal({
   const handleConfirmRemove = async () => {
     if (!projectId || !documentItem._id) return;
 
-    setLoading(true);
     setError(null);
 
     try {
-      const res = await fetch(
-        `/api/projects/${projectId}/documents/${encodeURIComponent(documentItem._id)}`,
-        {
-          method: "DELETE",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            confirmDocumentId: documentItem._id,
-          }),
-        }
-      );
-
-      const data = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        if (res.status === 409) {
-          throw new Error(
-            data.message ||
-              "Document removal is already in progress. Please wait a moment and refresh."
-          );
-        }
-        throw new Error(
-          data.message ||
-            data.error ||
-            `Failed to remove document (${res.status})`
-        );
-      }
+      await removeDocument.mutateAsync({
+        projectId,
+        documentId: documentItem._id,
+      });
 
       onDocumentRemoved(documentItem._id, documentItem.title);
       onClose();
     } catch (err: any) {
-      console.error("Remove document error:", err);
       setError(
-        err.message || "Failed to remove compliance document. Please try again."
+        apiErrorMessage(
+          err,
+          "Could not remove the document. Please try again.",
+        ),
       );
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -171,16 +151,16 @@ export function RemoveDocumentModal({
               </li>
               <li>
                 <strong>Asset Cleanup:</strong> The durable PDF file asset will
-                be permanently deleted unless shared by another document in
-                the repository.
+                be permanently deleted unless shared by another document in the
+                repository.
               </li>
             </ul>
           </div>
 
           <p className="text-[11px] text-rose-700 bg-rose-50 border border-rose-100 rounded-lg p-2.5">
-            <strong>Warning:</strong> This action cannot be undone. You will need
-            to re-upload and re-extract the document to use its rules in active
-            retrieval again.
+            <strong>Warning:</strong> This action cannot be undone. You will
+            need to re-upload and re-extract the document to use its rules in
+            active retrieval again.
           </p>
 
           {error && (
@@ -213,7 +193,10 @@ export function RemoveDocumentModal({
           >
             {loading ? (
               <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <Loader2
+                  aria-hidden="true"
+                  className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none"
+                />
                 <span>Removing document and active rules…</span>
               </>
             ) : (

@@ -20,11 +20,6 @@ const ingestRequestSchema = z.object({
     .trim()
     .min(1, "Title is required")
     .max(200, "Title must be between 1 and 200 characters"),
-  industry: z
-    .string()
-    .trim()
-    .min(1, "Industry is required")
-    .max(100, "Industry must be between 1 and 100 characters"),
 });
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
@@ -40,7 +35,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       "Invalid JSON request body",
       400,
       undefined,
-      correlationId
+      correlationId,
     );
   }
 
@@ -57,44 +52,42 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       message,
       400,
       { issues: parsed.error.issues },
-      correlationId
+      correlationId,
     );
   }
-
-  // Authorize user owns the project
-  const session = await auth.api.getSession({
-    headers: req.headers,
-  });
-
-  if (!session?.user?.id) {
-    return errorResponse(
-      ErrorCodes.UNAUTHORIZED,
-      "Authentication required to ingest documents",
-      401,
-      undefined,
-      correlationId
-    );
-  }
-
-  const authorized = await getAuthorizedProject(parsed.data.projectId, session.user.id);
-  if (!authorized) {
-    return errorResponse(
-      ErrorCodes.NOT_FOUND,
-      "Project not found.",
-      404,
-      undefined,
-      correlationId
-    );
-  }
-
-  logger.info("ingest_request_start", {
-    correlationId,
-    route: "/api/documents/ingest",
-    projectId: parsed.data.projectId,
-  });
 
   try {
-    const result = await ingestDocument(parsed.data, correlationId);
+    // Authorize user owns the project within the shared error boundary.
+    const session = await auth.api.getSession({
+      headers: req.headers,
+    });
+
+    if (!session?.user?.id) {
+      return errorResponse(
+        ErrorCodes.UNAUTHORIZED,
+        "Authentication required to ingest documents",
+        401,
+        undefined,
+        correlationId,
+      );
+    }
+
+    const authorized = await getAuthorizedProject(
+      parsed.data.projectId,
+      session.user.id,
+    );
+
+    logger.info("ingest_request_start", {
+      correlationId,
+      route: "/api/documents/ingest",
+      projectId: parsed.data.projectId,
+    });
+
+    // Keep the existing Sanity field compatible without a second browser input.
+    const result = await ingestDocument(
+      { ...parsed.data, industry: authorized.name },
+      correlationId,
+    );
     const durationMs = Date.now() - startTime;
 
     logger.info("ingest_request_success", {

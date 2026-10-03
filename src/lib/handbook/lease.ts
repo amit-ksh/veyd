@@ -9,10 +9,10 @@ function isLiveUpstashConfigured(): boolean {
   const token = process.env.UPSTASH_REDIS_REST_TOKEN;
   return Boolean(
     url &&
-      token &&
-      !url.includes("replace-with") &&
-      !token.includes("replace-with") &&
-      url.startsWith("https://")
+    token &&
+    !url.includes("replace-with") &&
+    !token.includes("replace-with") &&
+    url.startsWith("https://"),
   );
 }
 
@@ -36,7 +36,7 @@ const memoryLeases = new Map<string, { leaseId: string; expiresAt: number }>();
  */
 export async function acquireHandbookLease(
   projectId: string,
-  ttlSeconds: number = 30
+  ttlSeconds: number = 120,
 ): Promise<{ acquired: boolean; leaseId: string }> {
   const key = `lease:handbook:${projectId}`;
   const leaseId = crypto.randomUUID();
@@ -49,10 +49,13 @@ export async function acquireHandbookLease(
         return { acquired: true, leaseId };
       }
       return { acquired: false, leaseId: "" };
-    } catch (err) {
-      console.warn("[HANDBOOK_LEASE] Upstash Redis lease check error, falling back to memory:", err);
+    } catch {
+      throw new Error("Handbook generation lock is unavailable. Please retry.");
     }
   }
+
+  if (process.env.NODE_ENV === "production")
+    throw new Error("Upstash is required for handbook generation locking.");
 
   // Fallback to in-memory lease
   const now = Date.now();
@@ -74,7 +77,7 @@ export async function acquireHandbookLease(
  */
 export async function releaseHandbookLease(
   projectId: string,
-  leaseId: string
+  leaseId: string,
 ): Promise<boolean> {
   const key = `lease:handbook:${projectId}`;
   const redis = getRedis();
@@ -90,8 +93,8 @@ export async function releaseHandbookLease(
       `;
       const res = await redis.eval(script, [key], [leaseId]);
       return res === 1;
-    } catch (err) {
-      console.warn("[HANDBOOK_LEASE] Upstash Redis release error, clearing memory fallback:", err);
+    } catch {
+      return false;
     }
   }
 
@@ -102,4 +105,26 @@ export async function releaseHandbookLease(
   }
 
   return false;
+}
+
+export async function renewHandbookLease(
+  projectId: string,
+  leaseId: string,
+): Promise<boolean> {
+  const key = `lease:handbook:${projectId}`;
+  const redis = getRedis();
+  if (redis) {
+    return (
+      (await redis.eval(
+        `if redis.call("get", KEYS[1]) == ARGV[1] then return redis.call("expire", KEYS[1], 120) else return 0 end`,
+        [key],
+        [leaseId],
+      )) === 1
+    );
+  }
+  const lease = memoryLeases.get(key);
+  if (!lease || lease.leaseId !== leaseId || lease.expiresAt <= Date.now())
+    return false;
+  lease.expiresAt = Date.now() + 120_000;
+  return true;
 }

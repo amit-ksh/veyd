@@ -5,8 +5,8 @@ import { getAuthorizedProject } from "@/lib/projects/service";
 import { AppShell } from "@/components/app-shell";
 
 export const metadata = {
-  title: "Veyd | Project Compliance Handbook",
-  description: "Automatically generated, evidence-bound compliance operating handbook",
+  title: "Veyd | Project Handbook",
+  description: "Read a cited handbook generated from published project sources",
 };
 
 export default async function ProjectHandbookPage({
@@ -19,7 +19,10 @@ export default async function ProjectHandbookPage({
   });
 
   if (session?.user?.id) {
-    const project = await getAuthorizedProject(params.projectId, session.user.id);
+    const project = await getAuthorizedProject(
+      params.projectId,
+      session.user.id,
+    );
     if (!project) {
       notFound();
     }

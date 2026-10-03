@@ -5,8 +5,8 @@ import { getAuthorizedProject } from "@/lib/projects/service";
 import { AppShell } from "@/components/app-shell";
 
 export const metadata = {
-  title: "Veyd | Regulatory Documents",
-  description: "Upload and manage regulatory compliance documents and rule extraction",
+  title: "Veyd | Documents",
+  description: "Upload and review your project documents",
 };
 
 export default async function ProjectDocumentsPage({
@@ -19,12 +19,19 @@ export default async function ProjectDocumentsPage({
   });
 
   if (session?.user?.id) {
-    const project = await getAuthorizedProject(params.projectId, session.user.id);
+    const project = await getAuthorizedProject(
+      params.projectId,
+      session.user.id,
+    );
     if (!project) {
       notFound();
     }
-    return <AppShell initialTab="documents" initialProjectId={params.projectId} />;
+    return (
+      <AppShell initialTab="documents" initialProjectId={params.projectId} />
+    );
   }
 
-  return <AppShell initialTab="documents" initialProjectId={params.projectId} />;
+  return (
+    <AppShell initialTab="documents" initialProjectId={params.projectId} />
+  );
 }

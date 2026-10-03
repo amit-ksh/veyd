@@ -6,6 +6,12 @@ export type HandbookCitation = {
   documentTitle: string;
   citation: string;
   sourcePages: number[];
+  sourceUrl?: string;
+  evidenceExcerpt?: string;
+  documentRevision?: string;
+  ruleRevision?: string;
+  lastReviewedAt?: string;
+  freshness?: "current" | "review-required";
 };
 
 export type HandbookRuleSection = {
@@ -43,7 +49,7 @@ export type SubjectIndexEntry = {
 };
 
 export type ProjectHandbookSnapshot = {
-  schemaVersion: 1;
+  schemaVersion: 2;
   projectId: string;
   projectName: string;
   sourceFingerprint: string;
@@ -55,9 +61,49 @@ export type ProjectHandbookSnapshot = {
   chapters: HandbookChapter[];
   citations: HandbookCitation[];
   subjectIndex: SubjectIndexEntry[];
+  reader?: HandbookReader;
 };
 
-export type HandbookStatus = "generating" | "ready" | "empty" | "failed" | "missing" | "stale";
+export type HandbookBlock = {
+  kind: "paragraph" | "list" | "formula" | "warning";
+  label: string;
+  text: string;
+  items: string[];
+  evidence: "source-backed" | "example" | "recommendation" | "limitation";
+  sourceKeys: string[];
+};
+
+export type HandbookFigure = {
+  title: string;
+  caption: string;
+  steps: string[];
+  sourceKeys: string[];
+};
+
+export type HandbookPage = {
+  id: string;
+  kind: "cover" | "contents" | "chapter" | "content";
+  title: string;
+  chapter: string;
+  blocks: HandbookBlock[];
+  figure?: HandbookFigure;
+  entries?: Array<{ title: string; page: number }>;
+};
+
+export type HandbookReader = {
+  title: string;
+  purpose: string;
+  audience: string;
+  scope: string;
+  model: string;
+  generatorVersion: string;
+  limitations: string[];
+  pages: HandbookPage[];
+  contents: Array<{ title: string; page: number }>;
+};
+
+export type HandbookStatus =
+  "generating" | "ready" | "empty" | "failed" | "missing" | "stale";
 
 export type HandbookResponse =
   | { status: "ready"; handbook: ProjectHandbookSnapshot }

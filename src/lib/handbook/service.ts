@@ -7,18 +7,27 @@ import {
 } from "./fingerprint";
 import { compileProjectHandbook } from "./compiler";
 import { parseHandbookSnapshot, projectHandbookSnapshotSchema } from "./schema";
-import { acquireHandbookLease, releaseHandbookLease } from "./lease";
+import {
+  acquireHandbookLease,
+  releaseHandbookLease,
+  renewHandbookLease,
+} from "./lease";
+import { draftHandbookReader } from "./generator";
 import type { HandbookResponse, ProjectHandbookSnapshot } from "./types";
 
 export class HandbookSourceChangedError extends Error {
-  constructor(message = "Source rules or documents changed during handbook compilation") {
+  constructor(
+    message = "Source rules or documents changed during handbook compilation",
+  ) {
     super(message);
     this.name = "HandbookSourceChangedError";
   }
 }
 
 export class HandbookRefreshRequiredError extends Error {
-  constructor(message = "Project handbook snapshot is missing, stale, or out of sync with reviewed rules") {
+  constructor(
+    message = "Project handbook snapshot is missing, stale, or out of sync with reviewed rules",
+  ) {
     super(message);
     this.name = "HandbookRefreshRequiredError";
   }
@@ -102,10 +111,12 @@ export async function getHandbookState(params: {
 
   // If another run is actively generating
   if (record.status === "generating") {
-    const started = record.generationStartedAt ? record.generationStartedAt.getTime() : 0;
+    const started = record.generationStartedAt
+      ? record.generationStartedAt.getTime()
+      : 0;
     const now = Date.now();
-    // If lease/run expired (older than 35s), treat as stale
-    if (now - started > 35000) {
+    // Model calls are bounded at 90 seconds; allow inventory/commit overhead.
+    if (now - started > 125000) {
       return { status: "stale", handbook: null };
     }
     return { status: "generating", handbook: null, retryAfterSeconds: 3 };
@@ -122,7 +133,7 @@ export async function getHandbookState(params: {
 
   // 4. Validate stored snapshot with Zod
   const parsed = parseHandbookSnapshot(record.snapshot);
-  if (!parsed) {
+  if (!parsed || parsed.projectId !== projectId) {
     logger.warn("handbook_stored_snapshot_schema_invalid", {
       correlationId,
       projectId,
@@ -132,7 +143,7 @@ export async function getHandbookState(params: {
 
   // 5. Invalidation Check: Does the snapshot contain any tombstoned document?
   const containsTombstonedDoc = parsed.chapters.some((ch) =>
-    inventory.tombstonedDocIds.has(ch.documentId)
+    inventory.tombstonedDocIds.has(ch.documentId),
   );
   if (containsTombstonedDoc) {
     logger.info("handbook_snapshot_invalidated_by_tombstone", {
@@ -228,13 +239,13 @@ export async function generateProjectHandbook(params: {
     currentRecord.sourceFingerprint === initialInventory.sourceFingerprint
   ) {
     const parsed = parseHandbookSnapshot(currentRecord.snapshot);
-    if (parsed) {
+    if (parsed && parsed.projectId === projectId) {
       return { status: "ready", handbook: parsed };
     }
   }
 
   // 2. Acquire generation lease
-  const lease = await acquireHandbookLease(projectId, 30);
+  const lease = await acquireHandbookLease(projectId, 120);
   if (!lease.acquired) {
     logger.info("handbook_generation_lease_contention", {
       correlationId,
@@ -244,6 +255,7 @@ export async function generateProjectHandbook(params: {
   }
 
   let leaseReleased = false;
+  const generationStartedAt = new Date();
 
   try {
     // 3. Mark generating state in PostgreSQL
@@ -253,11 +265,11 @@ export async function generateProjectHandbook(params: {
         projectId,
         status: "generating",
         sourceFingerprint: initialInventory.sourceFingerprint,
-        generationStartedAt: new Date(),
+        generationStartedAt,
       },
       update: {
         status: "generating",
-        generationStartedAt: new Date(),
+        generationStartedAt,
         lastErrorCode: null,
       },
     });
@@ -270,8 +282,8 @@ export async function generateProjectHandbook(params: {
     });
 
     if (inventoryUnderLease.eligibleRules.length === 0) {
-      await prisma.projectHandbook.update({
-        where: { projectId },
+      await prisma.projectHandbook.updateMany({
+        where: { projectId, status: "generating", generationStartedAt },
         data: {
           status: "empty",
           sourceFingerprint: inventoryUnderLease.sourceFingerprint,
@@ -294,9 +306,11 @@ export async function generateProjectHandbook(params: {
       eligibleRules: inventoryUnderLease.eligibleRules,
       eligibleDocuments: inventoryUnderLease.eligibleDocuments,
     });
+    candidateSnapshot.reader = await draftHandbookReader(candidateSnapshot);
 
     // Validate with Zod
-    const validationResult = projectHandbookSnapshotSchema.safeParse(candidateSnapshot);
+    const validationResult =
+      projectHandbookSnapshotSchema.safeParse(candidateSnapshot);
     if (!validationResult.success) {
       logger.error("handbook_candidate_validation_failed", {
         correlationId,
@@ -313,7 +327,10 @@ export async function generateProjectHandbook(params: {
       correlationId,
     });
 
-    if (postCompileInventory.sourceFingerprint !== inventoryUnderLease.sourceFingerprint) {
+    if (
+      postCompileInventory.sourceFingerprint !==
+      inventoryUnderLease.sourceFingerprint
+    ) {
       logger.warn("handbook_source_changed_during_compilation", {
         correlationId,
         projectId,
@@ -321,8 +338,8 @@ export async function generateProjectHandbook(params: {
         postCompileFingerprint: postCompileInventory.sourceFingerprint,
       });
 
-      await prisma.projectHandbook.update({
-        where: { projectId },
+      await prisma.projectHandbook.updateMany({
+        where: { projectId, status: "generating", generationStartedAt },
         data: {
           status: "stale",
           lastErrorCode: "HANDBOOK_SOURCE_CHANGED",
@@ -332,9 +349,13 @@ export async function generateProjectHandbook(params: {
       throw new HandbookSourceChangedError();
     }
 
-    // 7. Commit ready snapshot to PostgreSQL in one atomic update
-    await prisma.projectHandbook.update({
-      where: { projectId },
+    // A timed-out worker cannot overwrite a newer generation or removal invalidation.
+    if (!(await renewHandbookLease(projectId, lease.leaseId)))
+      throw new HandbookSourceChangedError(
+        "Generation lease expired. Please retry.",
+      );
+    const committed = await prisma.projectHandbook.updateMany({
+      where: { projectId, status: "generating", generationStartedAt },
       data: {
         status: "ready",
         sourceFingerprint: candidateSnapshot.sourceFingerprint,
@@ -347,6 +368,7 @@ export async function generateProjectHandbook(params: {
         lastErrorCode: null,
       },
     });
+    if (committed.count !== 1) throw new HandbookSourceChangedError();
 
     logger.info("handbook_generation_complete", {
       correlationId,
@@ -361,10 +383,13 @@ export async function generateProjectHandbook(params: {
       handbook: candidateSnapshot,
     };
   } catch (err: any) {
-    if (err instanceof HandbookSourceChangedError || err instanceof RuleSourceMismatchError) {
+    if (
+      err instanceof HandbookSourceChangedError ||
+      err instanceof RuleSourceMismatchError
+    ) {
       await prisma.projectHandbook
-        .update({
-          where: { projectId },
+        .updateMany({
+          where: { projectId, status: "generating", generationStartedAt },
           data: {
             status: "failed",
             lastErrorCode: err.name,
@@ -377,12 +402,12 @@ export async function generateProjectHandbook(params: {
     logger.error("handbook_generation_failed", {
       correlationId,
       projectId,
-      error: err.message,
+      errorCode: "GENERATION_ERROR",
     });
 
     await prisma.projectHandbook
-      .update({
-        where: { projectId },
+      .updateMany({
+        where: { projectId, status: "generating", generationStartedAt },
         data: {
           status: "failed",
           lastErrorCode: "GENERATION_ERROR",

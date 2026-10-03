@@ -1,81 +1,77 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   X,
   Key,
   Plus,
-  Loader2,
   Trash2,
   Copy,
   Check,
   ShieldAlert,
   AlertCircle,
   ExternalLink,
+  Loader2,
 } from "lucide-react";
+import { ContentSkeleton } from "@/components/ui/skeleton";
+import {
+  useCredentials,
+  useCreateCredential,
+  useRevokeCredential,
+} from "@/hooks/use-app-queries";
+import { apiErrorMessage, isAccessError } from "@/lib/client-api";
 
 interface ProjectMcpModalProps {
+  userId: string;
   isOpen: boolean;
   onClose: () => void;
   projectId: string;
   projectName: string;
 }
 
-interface McpCredentialItem {
-  id: string;
-  label: string;
-  tokenHint: string;
-  createdAt: string;
-  lastUsedAt: string | null;
-  revokedAt: string | null;
-}
-
 export function ProjectMcpModal({
+  userId,
   isOpen,
   onClose,
   projectId,
   projectName,
 }: ProjectMcpModalProps) {
-  const [credentials, setCredentials] = useState<McpCredentialItem[]>([]);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const credentialsQuery = useCredentials(userId, projectId, isOpen);
+  const credentials = isAccessError(credentialsQuery.error)
+    ? []
+    : credentialsQuery.data || [];
+  const loading = credentialsQuery.isPending;
+  const scope = useRef("");
 
   // New credential state
   const [newLabel, setNewLabel] = useState("");
-  const [creating, setCreating] = useState(false);
-  const [newPlaintextToken, setNewPlaintextToken] = useState<string | null>(null);
+  const [newPlaintextToken, setNewPlaintextToken] = useState<string | null>(
+    null,
+  );
   const [copiedToken, setCopiedToken] = useState(false);
 
-  // Revoking state
-  const [revokingId, setRevokingId] = useState<string | null>(null);
-
-  const fetchCredentials = useCallback(async () => {
-    if (!projectId) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch(`/api/projects/${projectId}/credentials`);
-      if (!res.ok) {
-        throw new Error(`Failed to load credentials (${res.status})`);
-      }
-      const data = await res.json();
-      setCredentials(data.data || data.credentials || []);
-    } catch (err: any) {
-      console.error("Fetch MCP credentials failed:", err);
-      setError("Unable to load MCP credentials for this project.");
-    } finally {
-      setLoading(false);
-    }
-  }, [projectId]);
+  const createToken = useCreateCredential(userId, (token, sourceProjectId) => {
+    if (scope.current === `${userId}:${sourceProjectId}:open`)
+      setNewPlaintextToken(token);
+  });
+  const revokeToken = useRevokeCredential(userId);
+  const creating = createToken.isPending;
+  const revokingId = revokeToken.isPending
+    ? revokeToken.variables?.credentialId || null
+    : null;
 
   useEffect(() => {
-    if (isOpen) {
-      setNewPlaintextToken(null);
-      setCopiedToken(false);
-      setNewLabel("");
-      fetchCredentials();
-    }
-  }, [isOpen, fetchCredentials]);
+    scope.current = isOpen ? `${userId}:${projectId}:open` : "";
+    setNewPlaintextToken(null);
+    setCopiedToken(false);
+    setNewLabel("");
+    setError(null);
+    if (!isOpen) createToken.reset();
+    return () => {
+      scope.current = "";
+    };
+  }, [isOpen, projectId, userId]);
 
   // Handle escape key
   useEffect(() => {
@@ -94,62 +90,40 @@ export function ProjectMcpModal({
     e.preventDefault();
     const trimmed = newLabel.trim();
     if (!trimmed) {
-      setError("Token label is required (e.g. 'Cursor IDE' or 'Claude Desktop').");
+      setError(
+        "Token label is required (e.g. 'Cursor IDE' or 'Claude Desktop').",
+      );
       return;
     }
 
-    setCreating(true);
     setError(null);
+    setNewPlaintextToken(null);
+    setCopiedToken(false);
 
     try {
-      const res = await fetch(`/api/projects/${projectId}/credentials`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ label: trimmed }),
-      });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error?.message || data.message || `Failed to create token (${res.status})`);
-      }
-
-      const result = await res.json();
-      const payload = result.data || result;
-      setNewPlaintextToken(payload.token);
+      await createToken.mutateAsync({ projectId, label: trimmed });
       setNewLabel("");
-      fetchCredentials();
     } catch (err: any) {
-      console.error("Create token error:", err);
-      setError(err.message || "Failed to generate MCP credential.");
-    } finally {
-      setCreating(false);
+      setError(apiErrorMessage(err, "Failed to generate MCP credential."));
     }
   };
 
   const handleRevokeToken = async (credentialId: string) => {
-    if (!confirm("Are you sure you want to revoke this MCP token? Clients using it will immediately receive 401 Unauthorized.")) {
+    if (
+      !confirm(
+        "Are you sure you want to revoke this MCP token? Clients using it will immediately receive 401 Unauthorized.",
+      )
+    ) {
       return;
     }
 
-    setRevokingId(credentialId);
     setError(null);
 
     try {
-      const res = await fetch(`/api/projects/${projectId}/credentials/${credentialId}`, {
-        method: "DELETE",
-      });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error?.message || data.message || `Failed to revoke token (${res.status})`);
-      }
-
-      fetchCredentials();
+      await revokeToken.mutateAsync({ projectId, credentialId });
+      if (createToken.data?.id === credentialId) setNewPlaintextToken(null);
     } catch (err: any) {
-      console.error("Revoke token error:", err);
-      setError(err.message || "Failed to revoke token.");
-    } finally {
-      setRevokingId(null);
+      setError(apiErrorMessage(err, "Failed to revoke token."));
     }
   };
 
@@ -159,7 +133,9 @@ export function ProjectMcpModal({
       setCopiedToken(true);
       setTimeout(() => setCopiedToken(false), 2500);
     } catch {
-      // Fallback
+      setError(
+        "Clipboard access is unavailable. Select the token above and copy it manually.",
+      );
     }
   };
 
@@ -181,17 +157,24 @@ export function ProjectMcpModal({
               <Key className="w-4 h-4" />
             </div>
             <div>
-              <h2 id="mcp-tokens-title" className="text-base font-bold text-[#020618]">
-                MCP API Credentials
+              <h2
+                id="mcp-tokens-title"
+                className="text-base font-bold text-[#020618]"
+              >
+                Connect MCP
               </h2>
               <p className="text-[11px] text-slate-500 font-medium">
-                Scoped to project: <span className="font-semibold text-[#020618]">{projectName}</span>
+                Scoped to project:{" "}
+                <span className="font-semibold text-[#020618]">
+                  {projectName}
+                </span>
               </p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
+            disabled={creating || !!revokingId}
             aria-label="Close dialog"
             className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition focus-visible:ring-2 focus-visible:ring-[#00c9d2]"
           >
@@ -204,16 +187,19 @@ export function ProjectMcpModal({
           {/* Endpoint Information */}
           <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-200 text-xs space-y-1.5">
             <div className="flex items-center justify-between">
-              <span className="font-semibold text-slate-700">Model Context Protocol Endpoint:</span>
+              <span className="font-semibold text-slate-700">
+                Model Context Protocol Endpoint:
+              </span>
               <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-200 text-slate-700">
-                HTTP SSE / JSON-RPC
+                Streamable HTTP
               </span>
             </div>
             <div className="font-mono text-[11px] bg-white px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-800 break-all select-all">
               {mcpEndpoint}
             </div>
             <p className="text-[11px] text-slate-500 leading-relaxed">
-              Authenticate via <code className="font-mono text-slate-700">Authorization: Bearer &lt;token&gt;</code>. Queries will be strictly confined to this project&apos;s published documents and verified rules.
+              Connect your tools to this project with the endpoint and a bearer
+              token.
             </p>
           </div>
 
@@ -225,10 +211,12 @@ export function ProjectMcpModal({
                 <span>New Bearer Token Generated</span>
               </div>
               <p className="text-xs text-emerald-700 leading-relaxed font-medium">
-                Copy this token now. For your security, this plaintext token cannot be retrieved or displayed again.
+                Copy this token now. For your security, this plaintext token
+                cannot be retrieved or displayed again.
               </p>
               <div className="flex items-center gap-2 mt-1">
                 <input
+                  aria-label="New MCP bearer token"
                   type="text"
                   readOnly
                   value={newPlaintextToken}
@@ -256,7 +244,10 @@ export function ProjectMcpModal({
           )}
 
           {/* Generate Token Form */}
-          <form onSubmit={handleCreateToken} className="space-y-3 pt-1 border-t border-slate-100">
+          <form
+            onSubmit={handleCreateToken}
+            className="space-y-3 pt-1 border-t border-slate-100"
+          >
             <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
               Generate New Token
             </h3>
@@ -276,11 +267,14 @@ export function ProjectMcpModal({
                 className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#020618] hover:bg-slate-800 text-white text-xs font-semibold rounded-xl transition shadow-xs disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
               >
                 {creating ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <Loader2
+                    aria-hidden="true"
+                    className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none"
+                  />
                 ) : (
                   <Plus className="w-3.5 h-3.5" />
                 )}
-                <span>Generate</span>
+                <span>{creating ? "Generating…" : "Generate"}</span>
               </button>
             </div>
           </form>
@@ -298,12 +292,53 @@ export function ProjectMcpModal({
           {/* Credentials List */}
           <div className="space-y-3 pt-2 border-t border-slate-100">
             <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-              Active Credentials ({credentials.filter((c) => !c.revokedAt).length})
+              Active Credentials (
+              {credentials.filter((c) => !c.revokedAt).length})
             </h3>
 
+            {credentialsQuery.isError &&
+              credentialsQuery.data &&
+              !isAccessError(credentialsQuery.error) && (
+                <button
+                  disabled={credentialsQuery.isFetching}
+                  onClick={() => void credentialsQuery.refetch()}
+                  className="inline-flex items-center gap-2 text-xs text-rose-700 disabled:opacity-50"
+                >
+                  {credentialsQuery.isFetching && (
+                    <Loader2
+                      aria-hidden="true"
+                      className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none"
+                    />
+                  )}
+                  Could not refresh tokens. Retry
+                </button>
+              )}
+
             {loading ? (
-              <div className="py-6 flex justify-center text-slate-400">
-                <Loader2 className="w-5 h-5 animate-spin text-[#00c9d2]" />
+              <ContentSkeleton label="Loading tokens" rows={2} />
+            ) : credentialsQuery.isError &&
+              (!credentialsQuery.data ||
+                isAccessError(credentialsQuery.error)) ? (
+              <div role="alert" className="space-y-2 text-xs text-rose-700">
+                <p>
+                  {apiErrorMessage(
+                    credentialsQuery.error,
+                    "Unable to load MCP credentials for this project.",
+                  )}
+                </p>
+                <button
+                  disabled={credentialsQuery.isFetching}
+                  onClick={() => void credentialsQuery.refetch()}
+                  className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 disabled:opacity-50"
+                >
+                  {credentialsQuery.isFetching && (
+                    <Loader2
+                      aria-hidden="true"
+                      className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none"
+                    />
+                  )}
+                  Retry loading tokens
+                </button>
               </div>
             ) : credentials.length === 0 ? (
               <p className="text-xs text-slate-500 py-3 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
@@ -317,7 +352,9 @@ export function ProjectMcpModal({
                     <div
                       key={cred.id}
                       className={`p-3 text-xs flex items-center justify-between gap-3 ${
-                        isRevoked ? "bg-slate-50/70 opacity-60" : "bg-white hover:bg-slate-50/50"
+                        isRevoked
+                          ? "bg-slate-50/70 opacity-60"
+                          : "bg-white hover:bg-slate-50/50"
                       }`}
                     >
                       <div className="space-y-0.5 min-w-0">
@@ -335,9 +372,15 @@ export function ProjectMcpModal({
                           )}
                         </div>
                         <div className="text-[11px] text-slate-400 flex items-center gap-2">
-                          <span>Created: {new Date(cred.createdAt).toLocaleDateString()}</span>
+                          <span>
+                            Created:{" "}
+                            {new Date(cred.createdAt).toLocaleDateString()}
+                          </span>
                           {cred.lastUsedAt && (
-                            <span>• Last used: {new Date(cred.lastUsedAt).toLocaleDateString()}</span>
+                            <span>
+                              • Last used:{" "}
+                              {new Date(cred.lastUsedAt).toLocaleDateString()}
+                            </span>
                           )}
                         </div>
                       </div>
@@ -352,7 +395,10 @@ export function ProjectMcpModal({
                           className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
                         >
                           {revokingId === cred.id ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin text-rose-500" />
+                            <Loader2
+                              aria-hidden="true"
+                              className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none"
+                            />
                           ) : (
                             <Trash2 className="w-3.5 h-3.5" />
                           )}
@@ -371,6 +417,7 @@ export function ProjectMcpModal({
           <button
             type="button"
             onClick={onClose}
+            disabled={creating || !!revokingId}
             className="px-4 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-100 transition"
           >
             Done

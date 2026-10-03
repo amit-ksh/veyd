@@ -1,23 +1,28 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { X, Plus, Loader2, FolderPlus, AlertCircle } from "lucide-react";
+import { X, Plus, FolderPlus, AlertCircle, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useCreateProject } from "@/hooks/use-app-queries";
+import { apiErrorMessage } from "@/lib/client-api";
 
 interface AddProjectModalProps {
+  userId: string;
   isOpen: boolean;
   onClose: () => void;
   onProjectCreated: (project: { id: string; name: string }) => void;
 }
 
 export function AddProjectModal({
+  userId,
   isOpen,
   onClose,
   onProjectCreated,
 }: AddProjectModalProps) {
   const router = useRouter();
   const [name, setName] = useState("");
-  const [loading, setLoading] = useState(false);
+  const createProject = useCreateProject(userId);
+  const loading = createProject.isPending;
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
@@ -56,32 +61,18 @@ export function AddProjectModal({
       return;
     }
 
-    setLoading(true);
     setError(null);
 
     try {
-      const res = await fetch("/api/projects", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: trimmed }),
-      });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error?.message || data.message || `Failed to create project (${res.status})`);
-      }
-
-      const data = await res.json();
-      const createdProject = data.data || data.project || data;
+      const createdProject = await createProject.mutateAsync(trimmed);
 
       onProjectCreated(createdProject);
       onClose();
       router.push(`/projects/${createdProject.id}/chat`);
     } catch (err: any) {
-      console.error("Create project error:", err);
-      setError(err.message || "Failed to create project. Please try again.");
-    } finally {
-      setLoading(false);
+      setError(
+        apiErrorMessage(err, "Failed to create project. Please try again."),
+      );
     }
   };
 
@@ -101,7 +92,10 @@ export function AddProjectModal({
             <div className="w-8 h-8 rounded-lg bg-[#00c9d2]/15 text-[#008f96] flex items-center justify-center">
               <FolderPlus className="w-4 h-4" />
             </div>
-            <h2 id="add-project-title" className="text-base font-bold text-[#020618]">
+            <h2
+              id="add-project-title"
+              className="text-base font-bold text-[#020618]"
+            >
               Create New Project
             </h2>
           </div>
@@ -118,7 +112,7 @@ export function AddProjectModal({
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <p className="text-xs text-slate-600 leading-relaxed">
-            Projects isolate compliance documents, extracted rules, chat history, and MCP access into independent domains.
+            Keep documents, chats, and a handbook together for one topic.
           </p>
 
           <div className="space-y-1.5">
@@ -134,7 +128,7 @@ export function AddProjectModal({
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Food Safety, Civil Infrastructure, Healthcare Compliance"
+              placeholder="e.g. Food, Civil, Engineering"
               maxLength={100}
               disabled={loading}
               className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-[#020618] placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#00c9d2] focus:border-transparent transition"
@@ -171,7 +165,10 @@ export function AddProjectModal({
             >
               {loading ? (
                 <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <Loader2
+                    aria-hidden="true"
+                    className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none"
+                  />
                   <span>Creating…</span>
                 </>
               ) : (

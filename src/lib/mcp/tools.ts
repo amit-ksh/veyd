@@ -22,9 +22,13 @@ export interface ScopedMcpTool {
   handler: (args: any) => Promise<McpToolHandlerResult>;
 }
 
-export function createProjectScopedMcpTools(projectId: string): ScopedMcpTool[] {
+export function createProjectScopedMcpTools(
+  projectId: string,
+): ScopedMcpTool[] {
   if (!projectId) {
-    throw new Error("projectId is required to construct project-scoped MCP tools");
+    throw new Error(
+      "projectId is required to construct project-scoped MCP tools",
+    );
   }
 
   const searchRulesTool: ScopedMcpTool = {
@@ -39,7 +43,9 @@ export function createProjectScopedMcpTools(projectId: string): ScopedMcpTool[] 
       industry: z
         .string()
         .optional()
-        .describe("Optional industry filter, e.g. Healthcare, Construction, Food"),
+        .describe(
+          "Optional industry filter, e.g. Healthcare, Construction, Food",
+        ),
       jurisdiction: z
         .string()
         .optional()
@@ -48,7 +54,9 @@ export function createProjectScopedMcpTools(projectId: string): ScopedMcpTool[] 
         .boolean()
         .optional()
         .default(false)
-        .describe("Whether to include superseded, stale, or expired rules (default: false)"),
+        .describe(
+          "Whether to include superseded, stale, or expired rules (default: false)",
+        ),
       limit: z
         .number()
         .int()
@@ -79,14 +87,19 @@ export function createProjectScopedMcpTools(projectId: string): ScopedMcpTool[] 
 
   const getRuleTool: ScopedMcpTool = {
     name: "get_compliance_rule",
-    description: "Get a specific published compliance rule by its Sanity document ID in the authenticated project.",
+    description:
+      "Get a specific published compliance rule by its Sanity document ID in the authenticated project.",
     inputSchema: z.object({
       ruleId: z
         .string()
         .min(1, "ruleId must not be empty")
         .describe("Sanity document ID of the published compliance rule"),
     }),
-    handler: async ({ ruleId }: { ruleId: string }): Promise<McpToolHandlerResult> => {
+    handler: async ({
+      ruleId,
+    }: {
+      ruleId: string;
+    }): Promise<McpToolHandlerResult> => {
       if (!ruleId || ruleId.startsWith("drafts.")) {
         return {
           isError: true,
@@ -161,7 +174,11 @@ export function createProjectScopedMcpTools(projectId: string): ScopedMcpTool[] 
         .min(1, "documentId must not be empty")
         .describe("Sanity document ID of the compliance document"),
     }),
-    handler: async ({ documentId }: { documentId: string }): Promise<McpToolHandlerResult> => {
+    handler: async ({
+      documentId,
+    }: {
+      documentId: string;
+    }): Promise<McpToolHandlerResult> => {
       if (!documentId || documentId.startsWith("drafts.")) {
         return {
           isError: true,
@@ -229,6 +246,18 @@ export function createProjectScopedMcpTools(projectId: string): ScopedMcpTool[] 
           ],
         })),
         citations: hb.citations,
+        reader: hb.reader
+          ? {
+              title: hb.reader.title,
+              contents: hb.reader.contents,
+              pages: hb.reader.pages.map((p, i) => ({
+                anchor: p.id,
+                page: i + 1,
+                title: p.title,
+                kind: p.kind,
+              })),
+            }
+          : null,
       };
     },
   };
@@ -236,14 +265,18 @@ export function createProjectScopedMcpTools(projectId: string): ScopedMcpTool[] 
   const getHandbookSectionTool: ScopedMcpTool = {
     name: "get_project_handbook_section",
     description:
-      "Get a specific handbook section by its anchor (e.g. sec-1-1) along with its cited source note for the authenticated project. Returns NOT_FOUND for invalid anchors and HANDBOOK_REFRESH_REQUIRED if the handbook is not current.",
+      "Get a stored book page or reviewed section using an exact anchor from get_project_handbook_index, along with its cited sources for the authenticated project. Returns NOT_FOUND for invalid anchors and HANDBOOK_REFRESH_REQUIRED if the handbook is not current.",
     inputSchema: z.object({
       anchor: z
         .string()
         .min(1, "anchor must not be empty")
         .describe("Section anchor identifier, e.g. sec-1-1"),
     }),
-    handler: async ({ anchor }: { anchor: string }): Promise<McpToolHandlerResult> => {
+    handler: async ({
+      anchor,
+    }: {
+      anchor: string;
+    }): Promise<McpToolHandlerResult> => {
       const state = await getHandbookState({ projectId });
       if (state.status !== "ready" || !state.handbook) {
         return {
@@ -256,10 +289,24 @@ export function createProjectScopedMcpTools(projectId: string): ScopedMcpTool[] 
 
       let foundSection: any = null;
       let foundChapter: any = null;
+      const page = state.handbook.reader?.pages.find((p) => p.id === anchor);
+      if (page) {
+        const keys = new Set([
+          ...page.blocks.flatMap((b) => b.sourceKeys),
+          ...(page.figure?.sourceKeys || []),
+        ]);
+        return {
+          page,
+          citations: state.handbook.citations.filter((c) =>
+            keys.has(c.sourceKey),
+          ),
+          generatedAt: state.handbook.generatedAt,
+        };
+      }
 
       for (const ch of state.handbook.chapters) {
         const sec = [...ch.currentRules, ...ch.reviewRequiredRules].find(
-          (r) => r.anchor === anchor
+          (r) => r.anchor === anchor,
         );
         if (sec) {
           foundSection = sec;
@@ -277,7 +324,7 @@ export function createProjectScopedMcpTools(projectId: string): ScopedMcpTool[] 
       }
 
       const citation = state.handbook.citations.find(
-        (c) => c.sourceKey === foundSection.sourceKey
+        (c) => c.sourceKey === foundSection.sourceKey,
       );
 
       return {

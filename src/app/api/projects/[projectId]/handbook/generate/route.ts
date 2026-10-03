@@ -10,10 +10,12 @@ import { errorResponse, handleRouteError } from "@/lib/http";
 import { ErrorCodes } from "@/lib/errors";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+export const maxDuration = 300;
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { projectId: string } }
+  { params }: { params: { projectId: string } },
 ) {
   const correlationId = crypto.randomUUID();
   const { projectId } = params;
@@ -30,7 +32,7 @@ export async function POST(
         "Authentication required.",
         401,
         undefined,
-        correlationId
+        correlationId,
       );
     }
 
@@ -49,7 +51,7 @@ export async function POST(
         "Project not found.",
         404,
         undefined,
-        correlationId
+        correlationId,
       );
     }
 
@@ -86,7 +88,7 @@ export async function POST(
         "Source rules or documents were modified during handbook compilation. Please retry generation.",
         409,
         undefined,
-        correlationId
+        correlationId,
       );
     }
 
@@ -96,7 +98,7 @@ export async function POST(
         error.message,
         400,
         undefined,
-        correlationId
+        correlationId,
       );
     }
 

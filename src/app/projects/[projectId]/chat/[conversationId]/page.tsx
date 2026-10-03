@@ -6,8 +6,8 @@ import { prisma } from "@/lib/prisma";
 import { AppShell } from "@/components/app-shell";
 
 export const metadata = {
-  title: "Veyd | Compliance Research Chat",
-  description: "AI-assisted compliance research and regulation handbook",
+  title: "Veyd | Research Chat",
+  description: "Research project knowledge with cited answers",
 };
 
 export default async function ProjectExistingChatPage({
@@ -20,7 +20,10 @@ export default async function ProjectExistingChatPage({
   });
 
   if (session?.user?.id) {
-    const project = await getAuthorizedProject(params.projectId, session.user.id);
+    const project = await getAuthorizedProject(
+      params.projectId,
+      session.user.id,
+    );
     if (!project) {
       notFound();
     }

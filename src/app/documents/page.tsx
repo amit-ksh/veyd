@@ -5,8 +5,8 @@ import { getMostRecentProject } from "@/lib/projects/service";
 import { AppShell } from "@/components/app-shell";
 
 export const metadata = {
-  title: "Veyd | Regulatory Documents",
-  description: "Upload and manage regulatory compliance documents and rule extraction",
+  title: "Veyd | Documents",
+  description: "Upload and review your project documents",
 };
 
 export default async function DocumentsPage() {

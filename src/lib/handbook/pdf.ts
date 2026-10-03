@@ -1,577 +1,346 @@
-import { PDFDocument, StandardFonts, rgb, RGB } from "pdf-lib";
-import type { ProjectHandbookSnapshot } from "./types";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import fontkit from "@pdf-lib/fontkit";
+import {
+  PDFDocument,
+  PDFName,
+  PDFString,
+  rgb,
+  type PDFFont,
+  type PDFPage,
+} from "pdf-lib";
+import type { HandbookCitation, ProjectHandbookSnapshot } from "./types";
 
-interface TextDrawOptions {
-  fontSize?: number;
-  font?: any;
-  color?: RGB;
-  lineHeight?: number;
-  indent?: number;
-}
-
-/**
- * Builds an official, cited, printable PDF handbook from a validated ProjectHandbookSnapshot.
- * Generates cover page, table of contents, chapters, labeled rule blocks, source notes, and subject index.
- */
-export async function generateHandbookPdf(snapshot: ProjectHandbookSnapshot): Promise<Uint8Array> {
-  const doc = await PDFDocument.create();
-
-  const fontRegular = await doc.embedFont(StandardFonts.Helvetica);
-  const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
-  const fontItalic = await doc.embedFont(StandardFonts.HelveticaOblique);
-
-  const pageWidth = 612; // Letter width (8.5 x 11 in)
-  const pageHeight = 792;
-  const marginX = 54; // 0.75 in
-  const marginTop = 54;
-  const marginBottom = 54;
-  const contentWidth = pageWidth - marginX * 2;
-
-  let currentPage = doc.addPage([pageWidth, pageHeight]);
-  let cursorY = pageHeight - marginTop;
-
-  const colorPrimary = rgb(0.01, 0.04, 0.12); // #020618
-  const colorSecondary = rgb(0.2, 0.25, 0.35); // Slate
-  const colorMuted = rgb(0.4, 0.45, 0.55);
-  const colorAccent = rgb(0, 0.56, 0.59); // Teal #008f96
-  const colorAmber = rgb(0.72, 0.45, 0.05); // Amber
-  const colorLine = rgb(0.85, 0.88, 0.92);
-
-  const startNewPage = () => {
-    currentPage = doc.addPage([pageWidth, pageHeight]);
-    cursorY = pageHeight - marginTop;
+/** Renders the stored book, preserving its A5 page numbers; never calls AI. */
+export async function generateHandbookPdf(
+  snapshot: ProjectHandbookSnapshot,
+): Promise<Uint8Array> {
+  const book = snapshot.reader;
+  if (!book) throw new Error("Handbook reader structure is unavailable.");
+  const document = await PDFDocument.create();
+  document.registerFontkit(fontkit);
+  const [regularBytes, boldBytes] = await Promise.all([
+    readFile(path.join(process.cwd(), "public/fonts/NotoSans-Regular.ttf")),
+    readFile(path.join(process.cwd(), "public/fonts/NotoSans-Bold.ttf")),
+  ]);
+  const regular = await document.embedFont(regularBytes);
+  const bold = await document.embedFont(boldBytes);
+  const supported = new Set(regular.getCharacterSet());
+  const assertGlyphs = (text: string) => {
+    for (const char of text)
+      if (!/\s/.test(char) && !supported.has(char.codePointAt(0)!))
+        throw new Error(
+          "A character is not supported by the PDF font. Use the offline HTML export for this edition.",
+        );
+    return text;
   };
-
-  const ensureSpace = (neededHeight: number) => {
-    if (cursorY - neededHeight < marginBottom) {
-      startNewPage();
-    }
-  };
-
-  const wrapText = (text: string, maxWidth: number, fontSize: number, font: any): string[] => {
-    if (!text) return [];
-    const paragraphs = text.split("\n");
+  const width = 419.53,
+    height = 595.28,
+    left = 38,
+    contentWidth = width - left * 2;
+  const ink = rgb(0.09, 0.14, 0.2),
+    accent = rgb(0, 0.45, 0.48),
+    muted = rgb(0.39, 0.44, 0.49);
+  const bookPages = book.pages.map(() => document.addPage([width, height]));
+  const sourcePages = snapshot.citations.map(() =>
+    document.addPage([width, height]),
+  );
+  const wrap = (
+    text: string,
+    size: number,
+    font: PDFFont,
+    maxWidth = contentWidth,
+  ) => {
     const lines: string[] = [];
-
-    for (const paragraph of paragraphs) {
-      if (!paragraph.trim()) {
-        lines.push("");
-        continue;
-      }
-      const words = paragraph.split(/\s+/);
-      let currentLine = words[0] || "";
-
-      for (let i = 1; i < words.length; i++) {
-        const word = words[i];
-        const testLine = `${currentLine} ${word}`;
-        const width = font.widthOfTextAtSize(testLine, fontSize);
-
-        if (width <= maxWidth) {
-          currentLine = testLine;
-        } else {
-          lines.push(currentLine);
-          currentLine = word;
+    for (const paragraph of assertGlyphs(text).split("\n")) {
+      let line = "";
+      for (const word of paragraph.split(/\s+/).filter(Boolean)) {
+        if (
+          line &&
+          font.widthOfTextAtSize(line + " " + word, size) > maxWidth
+        ) {
+          lines.push(line);
+          line = "";
         }
+        // Long source IDs/URLs are split by character, never clipped.
+        for (const char of word) {
+          if (font.widthOfTextAtSize(line + char, size) > maxWidth) {
+            lines.push(line);
+            line = "";
+          }
+          line += char;
+        }
+        line += " ";
       }
-      if (currentLine) {
-        lines.push(currentLine);
-      }
+      lines.push(line.trimEnd());
     }
-
     return lines;
   };
-
-  const drawParagraph = (text: string, options: TextDrawOptions = {}) => {
-    const fontSize = options.fontSize || 10;
-    const font = options.font || fontRegular;
-    const color = options.color || colorPrimary;
-    const lineHeight = options.lineHeight || fontSize * 1.35;
-    const indent = options.indent || 0;
-    const effectiveWidth = contentWidth - indent;
-
-    const lines = wrapText(text, effectiveWidth, fontSize, font);
-    for (const line of lines) {
-      ensureSpace(lineHeight);
-      if (line.trim()) {
-        currentPage.drawText(line, {
-          x: marginX + indent,
-          y: cursorY - fontSize,
-          size: fontSize,
-          font,
-          color,
-        });
-      }
-      cursorY -= lineHeight;
-    }
+  const link = (
+    page: PDFPage,
+    y: number,
+    destination: PDFPage | string,
+    boxWidth = contentWidth,
+  ) => {
+    const annotation = document.context.obj({
+      Type: "Annot",
+      Subtype: "Link",
+      Rect: [left, y - 3, left + boxWidth, y + 15],
+      Border: [0, 0, 0],
+      ...(typeof destination === "string"
+        ? { A: { Type: "Action", S: "URI", URI: PDFString.of(destination) } }
+        : { Dest: [destination.ref, PDFName.of("Fit")] }),
+    });
+    page.node.addAnnot(document.context.register(annotation));
   };
-
-  // =========================================================================
-  // 1. COVER PAGE
-  // =========================================================================
-  cursorY = pageHeight * 0.65;
-
-  drawParagraph(snapshot.projectName.toUpperCase(), {
-    fontSize: 14,
-    font: fontBold,
-    color: colorAccent,
-    lineHeight: 20,
-  });
-
-  drawParagraph("Compliance Operating Handbook", {
-    fontSize: 26,
-    font: fontBold,
-    color: colorPrimary,
-    lineHeight: 32,
-  });
-
-  cursorY -= 8;
-  currentPage.drawLine({
-    start: { x: marginX, y: cursorY },
-    end: { x: marginX + contentWidth, y: cursorY },
-    thickness: 1.5,
-    color: colorAccent,
-  });
-  cursorY -= 20;
-
-  drawParagraph(
-    "Universal Regulatory Standards, Procedural Obligations & Verified Citations",
-    {
-      fontSize: 12,
-      font: fontRegular,
-      color: colorSecondary,
-      lineHeight: 18,
-    }
-  );
-
-  cursorY -= 40;
-
-  drawParagraph(`Project ID: ${snapshot.projectId}`, {
-    fontSize: 10,
-    font: fontRegular,
-    color: colorMuted,
-    lineHeight: 14,
-  });
-
-  drawParagraph(`Compilation Date: ${new Date(snapshot.generatedAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}`, {
-    fontSize: 10,
-    font: fontRegular,
-    color: colorMuted,
-    lineHeight: 14,
-  });
-
-  drawParagraph(
-    `Scope: ${snapshot.ruleCount} verified rules (${snapshot.currentRuleCount} active obligations, ${snapshot.reviewRequiredRuleCount} review-required) compiled across ${snapshot.documentCount} chapters.`,
-    {
-      fontSize: 10,
-      font: fontRegular,
-      color: colorSecondary,
-      lineHeight: 15,
-    }
-  );
-
-  cursorY -= 30;
-
-  drawParagraph(
-    "Freshness Notice: This handbook reflects reviewed, human-approved compliance rules active at generation time. Expired, superseded, or tombstoned regulatory sources are excluded from active chapters.",
-    {
-      fontSize: 9,
-      font: fontItalic,
-      color: colorMuted,
-      lineHeight: 13,
-    }
-  );
-
-  // =========================================================================
-  // 2. TABLE OF CONTENTS
-  // =========================================================================
-  startNewPage();
-
-  drawParagraph("Table of Contents", {
-    fontSize: 18,
-    font: fontBold,
-    color: colorPrimary,
-    lineHeight: 28,
-  });
-
-  cursorY -= 10;
-
-  for (const ch of snapshot.chapters) {
-    ensureSpace(20);
-    drawParagraph(`Chapter ${ch.number} — ${ch.title}`, {
-      fontSize: 11,
-      font: fontBold,
-      color: colorPrimary,
-      lineHeight: 16,
-    });
-
-    for (const sec of ch.currentRules) {
-      ensureSpace(14);
-      drawParagraph(`  Section ${sec.number}   ${sec.ruleName}`, {
-        fontSize: 9.5,
-        font: fontRegular,
-        color: colorSecondary,
-        lineHeight: 13,
-      });
-    }
-
-    if (ch.reviewRequiredRules.length > 0) {
-      ensureSpace(14);
-      drawParagraph(`  [Review Required Sections]`, {
-        fontSize: 9,
-        font: fontBold,
-        color: colorAmber,
-        lineHeight: 13,
-      });
-
-      for (const sec of ch.reviewRequiredRules) {
-        ensureSpace(14);
-        drawParagraph(`  Section ${sec.number}   ${sec.ruleName} (Review Required)`, {
-          fontSize: 9,
-          font: fontRegular,
-          color: colorAmber,
-          lineHeight: 13,
-        });
+  const refs = (keys: string[]) =>
+    keys
+      .map(
+        (key) =>
+          "[" +
+          (snapshot.citations.findIndex((c) => c.sourceKey === key) + 1) +
+          "]",
+      )
+      .join(" ");
+  for (const [index, stored] of book.pages.entries()) {
+    const page = bookPages[index];
+    let y = height - 50;
+    const paragraph = (
+      text: string,
+      size = 10.5,
+      font = regular,
+      color = ink,
+      lineHeight = size * 1.5,
+    ) => {
+      for (const line of wrap(text, size, font)) {
+        if (y - lineHeight < 42)
+          throw new Error(
+            "PDF page is too dense. Download the offline HTML instead.",
+          );
+        page.drawText(line, { x: left, y: y - size, size, font, color });
+        y -= lineHeight;
       }
-    }
-
-    cursorY -= 6;
-  }
-
-  // TOC entries for Source Notes and Subject Index
-  ensureSpace(24);
-  cursorY -= 8;
-  drawParagraph("Source Notes & Legal Citations", {
-    fontSize: 11,
-    font: fontBold,
-    color: colorPrimary,
-    lineHeight: 16,
-  });
-  drawParagraph("Subject & Citation Index", {
-    fontSize: 11,
-    font: fontBold,
-    color: colorPrimary,
-    lineHeight: 16,
-  });
-
-  // =========================================================================
-  // 3. CHAPTERS & RULE SECTIONS
-  // =========================================================================
-  for (const ch of snapshot.chapters) {
-    startNewPage();
-
-    drawParagraph(`CHAPTER ${ch.number}`, {
-      fontSize: 10,
-      font: fontBold,
-      color: colorAccent,
-      lineHeight: 14,
-    });
-
-    drawParagraph(ch.title, {
-      fontSize: 18,
-      font: fontBold,
-      color: colorPrimary,
-      lineHeight: 24,
-    });
-
-    drawParagraph(`Industry Sector: ${ch.industry}`, {
-      fontSize: 9.5,
-      font: fontItalic,
-      color: colorMuted,
-      lineHeight: 14,
-    });
-
-    cursorY -= 8;
-    currentPage.drawLine({
-      start: { x: marginX, y: cursorY },
-      end: { x: marginX + contentWidth, y: cursorY },
-      thickness: 0.75,
-      color: colorLine,
-    });
-    cursorY -= 14;
-
-    // Helper to render a section
-    const renderSection = (sec: (typeof ch.currentRules)[0], isReviewRequired: boolean) => {
-      ensureSpace(40);
-
-      // Section Header
-      drawParagraph(`Section ${sec.number}: ${sec.ruleName}`, {
-        fontSize: 12,
-        font: fontBold,
-        color: isReviewRequired ? colorAmber : colorPrimary,
-        lineHeight: 16,
-      });
-
-      // Status & metadata badge line
-      const metaLine = `Jurisdiction: ${sec.jurisdiction}${
-        sec.regulator ? `  |  Regulator: ${sec.regulator}` : ""
-      }  |  Status: ${isReviewRequired ? "REVIEW REQUIRED" : "Current"}  |  Ref: [${sec.sourceKey}]`;
-
-      drawParagraph(metaLine, {
-        fontSize: 8.5,
-        font: fontRegular,
-        color: isReviewRequired ? colorAmber : colorAccent,
-        lineHeight: 12,
-      });
-
-      cursorY -= 4;
-
-      // Description Block
-      if (sec.description) {
-        drawParagraph("Description:", {
-          fontSize: 9,
-          font: fontBold,
-          color: colorSecondary,
-          lineHeight: 13,
-        });
-        drawParagraph(sec.description, {
-          fontSize: 9.5,
-          font: fontRegular,
-          color: colorPrimary,
-          lineHeight: 13.5,
-          indent: 10,
-        });
-        cursorY -= 2;
-      }
-
-      // Requirement Block
-      if (sec.requirement) {
-        drawParagraph("Requirement & Operational Directive:", {
-          fontSize: 9,
-          font: fontBold,
-          color: colorSecondary,
-          lineHeight: 13,
-        });
-        drawParagraph(sec.requirement, {
-          fontSize: 9.5,
-          font: fontRegular,
-          color: colorPrimary,
-          lineHeight: 13.5,
-          indent: 10,
-        });
-        cursorY -= 2;
-      }
-
-      // Applicability Block
-      if (sec.applicability) {
-        drawParagraph("Scope of Applicability:", {
-          fontSize: 9,
-          font: fontBold,
-          color: colorSecondary,
-          lineHeight: 13,
-        });
-        drawParagraph(sec.applicability, {
-          fontSize: 9.5,
-          font: fontRegular,
-          color: colorPrimary,
-          lineHeight: 13.5,
-          indent: 10,
-        });
-      }
-
-      // Keywords line
-      if (sec.keywords && sec.keywords.length > 0) {
-        drawParagraph(`Keywords: ${sec.keywords.join(", ")}`, {
-          fontSize: 8,
-          font: fontItalic,
-          color: colorMuted,
-          lineHeight: 11,
-          indent: 10,
-        });
-      }
-
-      cursorY -= 12;
     };
-
-    // Render Current Rules
-    for (const sec of ch.currentRules) {
-      renderSection(sec, false);
-    }
-
-    // Render Review Required Rules
-    if (ch.reviewRequiredRules.length > 0) {
-      ensureSpace(35);
-      cursorY -= 10;
-      drawParagraph("Review Required Sections", {
-        fontSize: 13,
-        font: fontBold,
-        color: colorAmber,
-        lineHeight: 18,
-      });
-      drawParagraph(
-        "Notice: The following rules are marked stale, superseded, or past their stated review date. They remain cited for provenance but should not be treated as active obligations without review.",
-        {
-          fontSize: 8.5,
-          font: fontItalic,
-          color: colorAmber,
-          lineHeight: 12,
-        }
-      );
-      cursorY -= 6;
-
-      for (const sec of ch.reviewRequiredRules) {
-        renderSection(sec, true);
+    const sourceMarkers = (keys: string[]) => {
+      const start = y;
+      paragraph(refs(keys), 8, bold, accent);
+      let refX = left;
+      for (const key of keys) {
+        const sourceIndex = snapshot.citations.findIndex(
+          (citation) => citation.sourceKey === key,
+        );
+        if (sourceIndex < 0) throw new Error("Unknown PDF source reference.");
+        const markerWidth = bold.widthOfTextAtSize(
+          "[" + (sourceIndex + 1) + "] ",
+          8,
+        );
+        const annotation = document.context.obj({
+          Type: "Annot",
+          Subtype: "Link",
+          Rect: [refX, start - 10, refX + markerWidth, start + 2],
+          Border: [0, 0, 0],
+          Dest: [sourcePages[sourceIndex].ref, PDFName.of("Fit")],
+        });
+        page.node.addAnnot(document.context.register(annotation));
+        refX += markerWidth;
       }
-    }
-  }
-
-  // =========================================================================
-  // 4. SOURCE NOTES & CITATIONS
-  // =========================================================================
-  startNewPage();
-
-  drawParagraph("Source Notes & Legal Citations", {
-    fontSize: 18,
-    font: fontBold,
-    color: colorPrimary,
-    lineHeight: 26,
-  });
-
-  drawParagraph(
-    "Every obligation in this handbook traces to human-reviewed regulatory records. Source keys map directly to internal document and rule entries.",
-    {
-      fontSize: 9,
-      font: fontItalic,
-      color: colorMuted,
-      lineHeight: 13,
-    }
-  );
-
-  cursorY -= 8;
-  currentPage.drawLine({
-    start: { x: marginX, y: cursorY },
-    end: { x: marginX + contentWidth, y: cursorY },
-    thickness: 0.75,
-    color: colorLine,
-  });
-  cursorY -= 12;
-
-  for (const cite of snapshot.citations) {
-    ensureSpace(30);
-
-    drawParagraph(`[${cite.sourceKey}]  ${cite.documentTitle}`, {
-      fontSize: 10,
-      font: fontBold,
-      color: colorPrimary,
-      lineHeight: 14,
-    });
-
-    const pagesStr =
-      cite.sourcePages && cite.sourcePages.length > 0
-        ? `Pages: ${cite.sourcePages.join(", ")}`
-        : "Unpaginated / Whole Document";
-
-    drawParagraph(`Formal Citation: ${cite.citation}   |   ${pagesStr}`, {
-      fontSize: 8.5,
-      font: fontRegular,
-      color: colorSecondary,
-      lineHeight: 12,
-      indent: 12,
-    });
-
-    drawParagraph(`Source Document ID: ${cite.documentId}   |   Rule ID: ${cite.ruleId}`, {
-      fontSize: 8,
-      font: fontRegular,
-      color: colorMuted,
-      lineHeight: 11,
-      indent: 12,
-    });
-
-    cursorY -= 6;
-  }
-
-  // =========================================================================
-  // 5. SUBJECT & CITATION INDEX
-  // =========================================================================
-  startNewPage();
-
-  drawParagraph("Subject & Citation Index", {
-    fontSize: 18,
-    font: fontBold,
-    color: colorPrimary,
-    lineHeight: 26,
-  });
-
-  drawParagraph(
-    "Alphabetical subject directory compiled from rule classification keywords and formal citations.",
-    {
-      fontSize: 9,
-      font: fontItalic,
-      color: colorMuted,
-      lineHeight: 13,
-    }
-  );
-
-  cursorY -= 8;
-  currentPage.drawLine({
-    start: { x: marginX, y: cursorY },
-    end: { x: marginX + contentWidth, y: cursorY },
-    thickness: 0.75,
-    color: colorLine,
-  });
-  cursorY -= 12;
-
-  for (const entry of snapshot.subjectIndex) {
-    ensureSpace(14);
-    const targetSections = entry.targets.map((t) => `§${t.sectionNumber}`).join(", ");
-    const line = `${entry.term} — ${targetSections}`;
-
-    drawParagraph(line, {
-      fontSize: 9,
-      font: fontRegular,
-      color: colorPrimary,
-      lineHeight: 13,
-    });
-  }
-
-  // =========================================================================
-  // 6. TWO-PASS PAGE NUMBERS & RUNNING HEADERS
-  // =========================================================================
-  const totalPages = doc.getPageCount();
-
-  for (let i = 0; i < totalPages; i++) {
-    const page = doc.getPage(i);
-
-    // Skip running header on cover page (page 0)
-    if (i > 0) {
-      // Header
-      const headerText = `${snapshot.projectName} Compliance Handbook`;
-      page.drawText(headerText, {
-        x: marginX,
-        y: pageHeight - 34,
-        size: 8,
-        font: fontRegular,
-        color: colorMuted,
-      });
-
+    };
+    paragraph(stored.chapter, 8, bold, accent);
+    y -= 16;
+    if (stored.kind === "cover") y -= 65;
+    if (stored.kind === "chapter") y -= 95;
+    paragraph(
+      stored.title,
+      stored.kind === "cover" || stored.kind === "chapter" ? 26 : 22,
+      bold,
+      ink,
+      32,
+    );
+    y -= 20;
+    if (stored.kind === "cover") {
       page.drawLine({
-        start: { x: marginX, y: pageHeight - 38 },
-        end: { x: pageWidth - marginX, y: pageHeight - 38 },
-        thickness: 0.5,
-        color: colorLine,
+        start: { x: left, y },
+        end: { x: left + 40, y },
+        thickness: 2,
+        color: accent,
       });
+      y -= 22;
+      paragraph(book.purpose, 13);
+      y -= 26;
+      paragraph(
+        "Edition " + snapshot.generatedAt.slice(0, 10),
+        9,
+        regular,
+        muted,
+      );
+      y -= 12;
+      paragraph(book.scope, 10);
+      y -= 12;
+      paragraph(
+        snapshot.documentCount +
+          " published documents · " +
+          snapshot.ruleCount +
+          " reviewed entries",
+        9,
+        regular,
+        muted,
+      );
+      y -= 12;
+      paragraph(
+        "AI-drafted learning reference. Verify decisions against cited sources.",
+        9,
+        regular,
+        muted,
+      );
     }
-
-    // Footer on all pages
-    const footerText = `Page ${i + 1} of ${totalPages}`;
-    const footerWidth = fontRegular.widthOfTextAtSize(footerText, 8.5);
-
-    page.drawText(footerText, {
-      x: pageWidth - marginX - footerWidth,
-      y: 32,
-      size: 8.5,
-      font: fontRegular,
-      color: colorMuted,
-    });
-
-    const confText = "Confidential — Internal Compliance Use Only";
-    page.drawText(confText, {
-      x: marginX,
-      y: 32,
-      size: 7.5,
-      font: fontItalic,
-      color: colorMuted,
-    });
+    if (stored.entries)
+      for (const entry of stored.entries) {
+        const start = y;
+        paragraph(entry.title + "  ·  " + entry.page, 11);
+        link(page, start - 11, bookPages[entry.page - 1]);
+        y -= 14;
+      }
+    for (const block of stored.blocks) {
+      if (stored.kind === "cover") continue;
+      if (block.label) {
+        paragraph(block.label, 10, bold);
+        y -= 4;
+      }
+      if (block.evidence !== "source-backed") {
+        paragraph(
+          block.evidence === "example"
+            ? "Illustrative example"
+            : block.evidence,
+          8,
+          regular,
+          muted,
+        );
+        y -= 4;
+      }
+      if (block.text) paragraph(block.text);
+      for (const item of block.items) paragraph("• " + item);
+      if (block.sourceKeys.length) {
+        y -= 4;
+        sourceMarkers(block.sourceKeys);
+      }
+      y -= 18;
+    }
+    if (stored.figure) {
+      for (const [stepIndex, step] of stored.figure.steps.entries()) {
+        const lines = wrap(step, 11, regular, contentWidth - 32);
+        const boxHeight = Math.max(40, lines.length * 16 + 18);
+        if (y - boxHeight < 72)
+          throw new Error("PDF diagram exceeds page bounds.");
+        page.drawRectangle({
+          x: left,
+          y: y - boxHeight,
+          width: contentWidth,
+          height: boxHeight,
+          color: rgb(0.97, 0.98, 0.99),
+          borderColor: rgb(0.8, 0.85, 0.87),
+          borderWidth: 1,
+        });
+        for (const [lineIndex, line] of lines.entries())
+          page.drawText(
+            (lineIndex === 0 ? stepIndex + 1 + ". " : "   ") + line,
+            {
+              x: left + 12,
+              y: y - 19 - lineIndex * 16,
+              size: 11,
+              font: regular,
+              color: ink,
+            },
+          );
+        y -= boxHeight + 18;
+      }
+      paragraph(
+        "Illustrative diagram · " + stored.figure.caption,
+        8,
+        regular,
+        muted,
+      );
+      sourceMarkers(stored.figure.sourceKeys);
+    }
   }
-
-  return await doc.save();
+  const renderSource = (
+    citation: HandbookCitation,
+    page: PDFPage,
+    index: number,
+  ) => {
+    let y = height - 50;
+    const text = (value: string, size = 10, font = regular, color = ink) => {
+      for (const line of wrap(value, size, font)) {
+        if (y < 42) throw new Error("PDF reference exceeds page bounds.");
+        page.drawText(line, { x: left, y: y - size, size, font, color });
+        y -= size * 1.5;
+      }
+      y -= 12;
+    };
+    text("SOURCE [" + (index + 1) + "]", 8, bold, accent);
+    text(citation.documentTitle, 18, bold);
+    text(citation.citation);
+    text(
+      "PDF pages: " +
+        (citation.sourcePages.join(", ") || "Not recorded") +
+        ". Edition: not recorded.",
+      9,
+    );
+    text(
+      citation.freshness === "review-required"
+        ? "Review required; not an active requirement."
+        : "Published, human-reviewed source record.",
+      9,
+    );
+    if (citation.evidenceExcerpt) text(citation.evidenceExcerpt, 9);
+    text(
+      "Document revision: " + (citation.documentRevision || "Not recorded"),
+      8,
+      regular,
+      muted,
+    );
+    text(
+      "Entry revision: " + (citation.ruleRevision || "Not recorded"),
+      8,
+      regular,
+      muted,
+    );
+    text(
+      "Reviewed: " + (citation.lastReviewedAt || "Not recorded"),
+      8,
+      regular,
+      muted,
+    );
+    if (citation.sourceUrl) {
+      const start = y;
+      text("Open source PDF", 9, bold, accent);
+      link(
+        page,
+        start - 9,
+        citation.sourceUrl + "#page=" + (citation.sourcePages[0] || 1),
+      );
+    }
+    const mentions = book.pages.flatMap((p, i) =>
+      p.blocks.some((b) => b.sourceKeys.includes(citation.sourceKey)) ||
+      p.figure?.sourceKeys.includes(citation.sourceKey)
+        ? [i + 1]
+        : [],
+    );
+    text("Referenced on handbook pages: " + mentions.join(", "), 9);
+  };
+  snapshot.citations.forEach((citation, index) =>
+    renderSource(citation, sourcePages[index], index),
+  );
+  document.getPages().forEach((page, index) =>
+    page.drawText(String(index + 1), {
+      x: width / 2 - 4,
+      y: 20,
+      size: 8,
+      font: regular,
+      color: muted,
+    }),
+  );
+  document.setTitle(book.title);
+  document.setSubject(book.purpose);
+  document.setProducer("Veyd handbook generator " + book.generatorVersion);
+  return document.save();
 }

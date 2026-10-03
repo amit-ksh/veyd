@@ -24,6 +24,7 @@ Before implementing a feature, read:
 | User-owned projects, sidebar project list/add, project-scoped MCP | [`$compliance-project-context`](.agents/skills/compliance-project-context/SKILL.md) | [`docs/11-project-context-and-mcp-scope.md`](docs/11-project-context-and-mcp-scope.md) |
 | Remove a document and its active context while preserving citation origins | [`$compliance-document-removal`](.agents/skills/compliance-document-removal/SKILL.md) | [`docs/12-document-context-removal.md`](docs/12-document-context-removal.md) |
 | Automatically generated cited project handbook, book index, reading progress, PDF | [`$compliance-project-handbook`](.agents/skills/compliance-project-handbook/SKILL.md) | [`docs/13-project-handbook.md`](docs/13-project-handbook.md) |
+| Refined app UI and persisted AI-written A5 book, citations, history, PDF/offline HTML | [`$project-reader-ui`](.agents/skills/project-reader-ui/SKILL.md) | [`docs/14-project-reader-and-ui-refinement.md`](docs/14-project-reader-and-ui-refinement.md) |
 
 ## Using these skills with any model
 

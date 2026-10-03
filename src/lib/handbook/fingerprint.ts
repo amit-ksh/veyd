@@ -2,9 +2,10 @@ import crypto from "crypto";
 import { publishedClient } from "@/lib/sanity/clients";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+import { defineQuery } from "groq";
 
-export const HANDBOOK_SCHEMA_VERSION = 1;
-export const HANDBOOK_GENERATOR_VERSION = "1.0.0";
+export const HANDBOOK_SCHEMA_VERSION = 2;
+export const HANDBOOK_GENERATOR_VERSION = "2.0.4";
 
 export class RuleSourceMismatchError extends Error {
   constructor(message: string) {
@@ -19,6 +20,7 @@ export interface RawEligibleDocument {
   title: string;
   industry: string;
   projectId: string;
+  fileUrl?: string;
 }
 
 export interface RawEligibleRule {
@@ -35,7 +37,9 @@ export interface RawEligibleRule {
   freshnessStatus?: "current" | "stale" | "superseded" | null;
   keywords?: string[] | null;
   citation: string;
-  pageNumbers?: number[] | null;
+  sourcePages?: number[] | null;
+  evidenceExcerpt?: string | null;
+  lastReviewedAt?: string | null;
   projectId: string;
   sourceDocument: RawEligibleDocument;
 }
@@ -68,7 +72,7 @@ export async function inventoryProjectSources(params: {
   const tombstonedDocIds = new Set(tombstones.map((t) => t.documentId));
 
   // 2. Fetch published rules for this project with dereferenced sourceDocument (uncached)
-  const rawRules = await publishedClient.fetch<
+  const rawRules = await publishedClient.withConfig({ useCdn: false }).fetch<
     Array<{
       _id: string;
       _rev: string;
@@ -83,7 +87,9 @@ export async function inventoryProjectSources(params: {
       freshnessStatus?: "current" | "stale" | "superseded" | null;
       keywords?: string[] | null;
       citation?: string | null;
-      pageNumbers?: number[] | null;
+      sourcePages?: number[] | null;
+      evidenceExcerpt?: string | null;
+      lastReviewedAt?: string | null;
       projectId?: string | null;
       sourceDocument?: {
         _id: string;
@@ -91,10 +97,11 @@ export async function inventoryProjectSources(params: {
         title?: string | null;
         industry?: string | null;
         projectId?: string | null;
+        fileUrl?: string;
       } | null;
     }>
   >(
-    `*[_type == "complianceRule" && !(_id in path("drafts.**")) && defined(lastReviewedAt) && projectId == $projectId]{
+    defineQuery(`*[_type == "complianceRule" && !(_id in path("drafts.**")) && defined(lastReviewedAt) && projectId == $projectId]{
       _id,
       _rev,
       ruleName,
@@ -108,17 +115,20 @@ export async function inventoryProjectSources(params: {
       freshnessStatus,
       keywords,
       citation,
-      pageNumbers,
+      sourcePages,
+      evidenceExcerpt,
+      lastReviewedAt,
       projectId,
       sourceDocument->{
         _id,
         _rev,
         title,
         industry,
-        projectId
+        projectId,
+        "fileUrl": fileAsset.asset->url
       }
-    }`,
-    { projectId }
+    }`),
+    { projectId },
   );
 
   const eligibleRules: RawEligibleRule[] = [];
@@ -134,7 +144,7 @@ export async function inventoryProjectSources(params: {
         ruleProjectId: r.projectId,
       });
       throw new RuleSourceMismatchError(
-        `Invalid source data: Rule ${r._id} has projectId "${r.projectId}" which does not match authorized project "${projectId}".`
+        `Invalid source data: Rule ${r._id} has projectId "${r.projectId}" which does not match authorized project "${projectId}".`,
       );
     }
 
@@ -146,12 +156,12 @@ export async function inventoryProjectSources(params: {
         ruleId: r._id,
       });
       throw new RuleSourceMismatchError(
-        `Invalid source data: Published rule ${r._id} references a missing or unresolvable source document.`
+        `Invalid source data: Published rule ${r._id} references a missing or unresolvable source document.`,
       );
     }
 
     // Invariant 3: source document project matches
-    if (r.sourceDocument.projectId && r.sourceDocument.projectId !== projectId) {
+    if (r.sourceDocument.projectId !== projectId) {
       logger.error("handbook_source_document_project_mismatch", {
         correlationId,
         projectId,
@@ -160,12 +170,15 @@ export async function inventoryProjectSources(params: {
         documentProjectId: r.sourceDocument.projectId,
       });
       throw new RuleSourceMismatchError(
-        `Invalid source data: Rule ${r._id} references document ${r.sourceDocument._id} belonging to project "${r.sourceDocument.projectId}" instead of "${projectId}".`
+        `Invalid source data: Rule ${r._id} references document ${r.sourceDocument._id} belonging to project "${r.sourceDocument.projectId}" instead of "${projectId}".`,
       );
     }
 
     // Invariant 4: exclude tombstoned documents and their rules
-    if (tombstonedDocIds.has(r.sourceDocument._id) || tombstonedDocIds.has(r._id)) {
+    if (
+      tombstonedDocIds.has(r.sourceDocument._id) ||
+      tombstonedDocIds.has(r._id)
+    ) {
       continue;
     }
 
@@ -173,8 +186,9 @@ export async function inventoryProjectSources(params: {
       _id: r.sourceDocument._id,
       _rev: r.sourceDocument._rev || "",
       title: r.sourceDocument.title || "Untitled Document",
-      industry: r.sourceDocument.industry || "General Compliance",
+      industry: r.sourceDocument.industry || "",
       projectId,
+      fileUrl: r.sourceDocument.fileUrl,
     };
     documentsMap.set(doc._id, doc);
 
@@ -185,14 +199,16 @@ export async function inventoryProjectSources(params: {
       description: r.description || "",
       requirement: r.requirement || "",
       applicability: r.applicability || "",
-      jurisdiction: r.jurisdiction || "Federal",
+      jurisdiction: r.jurisdiction || "Not recorded",
       regulator: r.regulator,
       effectiveDate: r.effectiveDate,
       expiresAt: r.expiresAt,
       freshnessStatus: r.freshnessStatus,
       keywords: Array.isArray(r.keywords) ? r.keywords : [],
-      citation: r.citation || "Unspecified Citation",
-      pageNumbers: Array.isArray(r.pageNumbers) ? r.pageNumbers : [],
+      citation: r.citation || "Location not recorded",
+      sourcePages: Array.isArray(r.sourcePages) ? r.sourcePages : [],
+      evidenceExcerpt: r.evidenceExcerpt,
+      lastReviewedAt: r.lastReviewedAt,
       projectId,
       sourceDocument: doc,
     });
@@ -221,7 +237,14 @@ export async function inventoryProjectSources(params: {
         freshnessStatus: r.freshnessStatus || null,
         keywords: Array.isArray(r.keywords) ? [...r.keywords].sort() : [],
         citation: r.citation,
-        pageNumbers: Array.isArray(r.pageNumbers) ? [...r.pageNumbers].sort((a, b) => a - b) : [],
+        sourcePages: Array.isArray(r.sourcePages)
+          ? [...r.sourcePages].sort((a, b) => a - b)
+          : [],
+        evidenceExcerpt: r.evidenceExcerpt || null,
+        lastReviewedAt: r.lastReviewedAt || null,
+        expired: r.expiresAt
+          ? new Date(r.expiresAt).getTime() <= Date.now()
+          : false,
         docId: r.sourceDocument._id,
         docRev: r.sourceDocument._rev,
       }))
@@ -243,7 +266,10 @@ export async function inventoryProjectSources(params: {
   };
 
   const serialized = JSON.stringify(canonicalPayload);
-  const sourceFingerprint = crypto.createHash("sha256").update(serialized).digest("hex");
+  const sourceFingerprint = crypto
+    .createHash("sha256")
+    .update(serialized)
+    .digest("hex");
 
   return {
     eligibleRules,

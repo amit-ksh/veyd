@@ -5,8 +5,8 @@ import { getMostRecentProject } from "@/lib/projects/service";
 import { AppShell } from "@/components/app-shell";
 
 export const metadata = {
-  title: "Veyd | Compliance Research Chat",
-  description: "AI-assisted compliance research and regulation handbook",
+  title: "Veyd | Research Chat",
+  description: "Research project knowledge with cited answers",
 };
 
 export default async function ChatPage() {

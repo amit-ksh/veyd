@@ -56,7 +56,10 @@ export function compileProjectHandbook(params: {
   const citations: HandbookCitation[] = [];
   const subjectIndexMap = new Map<
     string,
-    { displayTerm: string; targets: Map<string, { anchor: string; sectionNumber: string }> }
+    {
+      displayTerm: string;
+      targets: Map<string, { anchor: string; sectionNumber: string }>;
+    }
   >();
 
   let totalRuleCount = 0;
@@ -68,7 +71,7 @@ export function compileProjectHandbook(params: {
   // 3. Compile each chapter and its rules
   sortedDocs.forEach((doc, docIndex) => {
     const chapterNumber = String(docIndex + 1);
-    const chapterAnchor = `ch-${chapterNumber}`;
+    const chapterAnchor = `ch-${doc._id}`;
     const docRules = rulesByDocId.get(doc._id) || [];
 
     // Separate current vs review-required rules
@@ -76,8 +79,11 @@ export function compileProjectHandbook(params: {
     const reviewRequiredRaw: RawEligibleRule[] = [];
 
     for (const rule of docRules) {
-      const isExpired = rule.expiresAt ? new Date(rule.expiresAt) <= now : false;
-      const isCurrentStatus = rule.freshnessStatus === "current" || !rule.freshnessStatus;
+      const isExpired = rule.expiresAt
+        ? new Date(rule.expiresAt) <= now
+        : false;
+      const isCurrentStatus =
+        rule.freshnessStatus === "current" || !rule.freshnessStatus;
 
       if (isCurrentStatus && !isExpired) {
         currentRaw.push(rule);
@@ -106,11 +112,11 @@ export function compileProjectHandbook(params: {
 
     const buildSection = (
       rule: RawEligibleRule,
-      freshness: "current" | "review-required"
+      freshness: "current" | "review-required",
     ): HandbookRuleSection => {
       const sectionNumber = `${chapterNumber}.${sectionSeq++}`;
-      const anchor = `sec-${chapterNumber}-${sectionSeq - 1}`;
-      const sourceKey = `src-${chapterNumber}-${sectionSeq - 1}`;
+      const anchor = `sec-${rule._id}`;
+      const sourceKey = `src-${rule._id}`;
 
       // Register Citation
       citations.push({
@@ -120,7 +126,15 @@ export function compileProjectHandbook(params: {
         documentId: doc._id,
         documentTitle: doc.title,
         citation: rule.citation,
-        sourcePages: rule.pageNumbers ? [...rule.pageNumbers].sort((a, b) => a - b) : [],
+        sourcePages: rule.sourcePages
+          ? [...rule.sourcePages].sort((a, b) => a - b)
+          : [],
+        sourceUrl: doc.fileUrl,
+        evidenceExcerpt: rule.evidenceExcerpt || undefined,
+        documentRevision: doc._rev,
+        ruleRevision: rule._rev,
+        lastReviewedAt: rule.lastReviewedAt || undefined,
+        freshness,
       });
 
       // Extract subject index terms (keywords and formal citation)
@@ -169,7 +183,9 @@ export function compileProjectHandbook(params: {
     };
 
     const currentRules = currentRaw.map((r) => buildSection(r, "current"));
-    const reviewRequiredRules = reviewRequiredRaw.map((r) => buildSection(r, "review-required"));
+    const reviewRequiredRules = reviewRequiredRaw.map((r) =>
+      buildSection(r, "review-required"),
+    );
 
     totalRuleCount += currentRules.length + reviewRequiredRules.length;
     totalCurrentCount += currentRules.length;
@@ -187,7 +203,9 @@ export function compileProjectHandbook(params: {
   });
 
   // 4. Sort and compile Subject Index entries
-  const sortedKeys = Array.from(subjectIndexMap.keys()).sort((a, b) => a.localeCompare(b));
+  const sortedKeys = Array.from(subjectIndexMap.keys()).sort((a, b) =>
+    a.localeCompare(b),
+  );
   const subjectIndex: SubjectIndexEntry[] = sortedKeys.map((key) => {
     const entry = subjectIndexMap.get(key)!;
     const sortedTargets = Array.from(entry.targets.values()).sort((a, b) => {
@@ -209,7 +227,7 @@ export function compileProjectHandbook(params: {
   });
 
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     projectId,
     projectName,
     sourceFingerprint,
