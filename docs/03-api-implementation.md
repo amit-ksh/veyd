@@ -100,6 +100,8 @@ type IngestDocumentResponse = {
 
 Select the model with `google(config.GEMINI_MODEL)`. Send the PDF as an `application/pdf` file content part and request schema-validated structured output.
 
+For confirmed research-PDF imports only, [Milestone 15](15-chat-document-ingestion.md) now uses Firecrawl to retrieve the original PDF and parse every physical page. The shared pipeline still stores the verified original file, but supplies the validated page-attributed text to Gemini instead of a file content part. Local/private uploads retain the binary-PDF flow described here.
+
 ```ts
 const extractedRuleSchema = z.object({
   ruleName: z.string().trim().min(1).max(200),

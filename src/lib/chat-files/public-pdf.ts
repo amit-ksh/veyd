@@ -1,16 +1,9 @@
 import { lookup } from "node:dns/promises";
-import { request } from "node:https";
 import { BlockList, isIP } from "node:net";
-import {
-  InvalidRequestError,
-  FileTooLargeError,
-  UnsupportedFileError,
-  UpstreamFailureError,
-} from "@/lib/errors";
-import { MAX_FILE_SIZE_BYTES } from "@/lib/ingestion/validator";
+import { InvalidRequestError, UpstreamFailureError } from "@/lib/errors";
 
 if (typeof window !== "undefined")
-  throw new Error("Server-only PDF downloader");
+  throw new Error("Server-only public PDF source validation");
 
 const blockedV4 = new BlockList();
 for (const [network, prefix] of [
@@ -106,113 +99,12 @@ async function resolvePublic(hostname: string, signal: AbortSignal) {
   }
 }
 
-export async function downloadPublicPdf(
+/** Screen URLs before sending them to a remote fetch provider. This is not DNS pinning. */
+export async function validatePublicPdfSource(
   raw: string,
-  clientSignal?: AbortSignal,
-): Promise<Buffer> {
-  const timeout = AbortSignal.timeout(20_000);
-  const signal = clientSignal
-    ? AbortSignal.any([timeout, clientSignal])
-    : timeout;
-  let url = publicPdfUrl(raw);
-  try {
-    for (let redirects = 0; redirects <= 3; redirects++) {
-      const hostname = url.hostname.replace(/^\[|\]$/g, "");
-      const pinned = await resolvePublic(hostname, signal);
-      const response = await new Promise<{
-        buffer?: Buffer;
-        redirect?: string;
-      }>((resolve, reject) => {
-        // Connect to the checked IP. Host and TLS servername retain the source's identity.
-        const req = request(
-          {
-            hostname: pinned.address,
-            port: 443,
-            servername: hostname,
-            method: "GET",
-            path: url.pathname + url.search,
-            signal,
-            agent: false,
-            rejectUnauthorized: true,
-            headers: {
-              Host: url.host,
-              Accept: "application/pdf",
-              "Accept-Encoding": "identity",
-            },
-          },
-          async (res) => {
-            try {
-              if ([301, 302, 303, 307, 308].includes(res.statusCode || 0)) {
-                const location = res.headers.location;
-                res.destroy();
-                if (!location)
-                  throw new InvalidRequestError(
-                    "PDF source returned an invalid redirect.",
-                  );
-                resolve({ redirect: new URL(location, url).href });
-                return;
-              }
-              if (res.statusCode !== 200)
-                throw new UpstreamFailureError(
-                  "The PDF source could not be downloaded. Check its public link.",
-                );
-              const type = (res.headers["content-type"] || "")
-                .split(";")[0]
-                .trim()
-                .toLowerCase();
-              if (
-                !["application/pdf", "application/octet-stream"].includes(type)
-              )
-                throw new UnsupportedFileError(
-                  "The source returned a web page or unsupported file, not a PDF.",
-                );
-              if (
-                res.headers["content-encoding"] &&
-                res.headers["content-encoding"] !== "identity"
-              )
-                throw new UnsupportedFileError(
-                  "Compressed PDF transfers are not supported. Use a direct PDF link.",
-                );
-              if (Number(res.headers["content-length"]) > MAX_FILE_SIZE_BYTES)
-                throw new FileTooLargeError();
-              const chunks: Buffer[] = [];
-              let size = 0;
-              for await (const chunk of res) {
-                const bytes = Buffer.from(chunk);
-                size += bytes.length;
-                if (size > MAX_FILE_SIZE_BYTES) throw new FileTooLargeError();
-                chunks.push(bytes);
-              }
-              resolve({ buffer: Buffer.concat(chunks, size) });
-            } catch (error) {
-              res.destroy();
-              reject(error);
-            }
-          },
-        );
-        req.on("error", () =>
-          reject(
-            new UpstreamFailureError(
-              "PDF download failed or timed out. Check the public source link.",
-            ),
-          ),
-        );
-        req.end();
-      });
-      if (response.buffer) return response.buffer;
-      url = publicPdfUrl(response.redirect!);
-    }
-    throw new InvalidRequestError("The PDF source redirected too many times.");
-  } catch (error) {
-    if (
-      error instanceof InvalidRequestError ||
-      error instanceof FileTooLargeError ||
-      error instanceof UnsupportedFileError ||
-      error instanceof UpstreamFailureError
-    )
-      throw error;
-    throw new UpstreamFailureError(
-      "Could not resolve or download the public PDF source.",
-    );
-  }
+  signal: AbortSignal,
+): Promise<URL> {
+  const url = publicPdfUrl(raw);
+  await resolvePublic(url.hostname.replace(/^\[|\]$/g, ""), signal);
+  return url;
 }

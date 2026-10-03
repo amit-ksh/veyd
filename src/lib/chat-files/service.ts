@@ -15,7 +15,7 @@ import {
   NotFoundError,
 } from "@/lib/errors";
 import { acquireImportLease } from "./lease";
-import { downloadPublicPdf } from "./public-pdf";
+import { loadFirecrawlPdf } from "./firecrawl-pdf";
 import {
   messageMetadata,
   readMessageMetadata,
@@ -267,9 +267,16 @@ export async function importChatFile(
     };
     let ingested;
     if (input.source.kind === "web") {
-      const bytes = await downloadPublicPdf(result.file.url!, scope.signal);
+      const { buffer, pages } = await loadFirecrawlPdf(
+        result.file.url!,
+        scope.signal,
+      );
       pipelineEntered = true;
-      ingested = await ingestPdfBuffer(params, bytes, scope.correlationId);
+      ingested = await ingestPdfBuffer(
+        { ...params, parsedPages: pages },
+        buffer,
+        scope.correlationId,
+      );
     } else {
       pipelineEntered = true;
       ingested = await ingestDocument(

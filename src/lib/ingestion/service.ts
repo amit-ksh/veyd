@@ -3,6 +3,7 @@ import { writeClient } from "../sanity/clients";
 import { createPublishedId, createDraftId } from "@sanity/id-utils";
 import { validatePdfBuffer, MAX_FILE_SIZE_BYTES } from "./validator";
 import { extractRulesFromPdf } from "./extractor";
+import { validateParsedPdfPages, type ParsedPdfPage } from "./parsed-pdf";
 import {
   InvalidRequestError,
   UpstreamFailureError,
@@ -158,7 +159,7 @@ export async function ingestDocument(
 
 /** Shared validated-PDF pipeline; remote imports never pass arbitrary URLs to Blob fetching. */
 export async function ingestPdfBuffer(
-  params: Omit<IngestDocumentParams, "blobUrl">,
+  params: Omit<IngestDocumentParams, "blobUrl"> & { parsedPages?: ParsedPdfPage[] },
   buffer: Buffer,
   correlationId?: string,
 ): Promise<IngestDocumentResult> {
@@ -169,6 +170,9 @@ export async function ingestPdfBuffer(
   try {
     // 2. Validate PDF signature, bounds, and readability
     const { pageCount, fileSizeBytes } = await validatePdfBuffer(buffer);
+    const parsedPages = params.parsedPages
+      ? validateParsedPdfPages(params.parsedPages, pageCount)
+      : undefined;
     signal?.throwIfAborted();
 
     // 3. Upload file asset to Sanity
@@ -229,6 +233,7 @@ export async function ingestPdfBuffer(
       pageCount,
       undefined,
       signal,
+      parsedPages,
     );
     signal?.throwIfAborted();
 
