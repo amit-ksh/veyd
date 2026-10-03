@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="340" viewBox="0 0 1200 340" role="img" aria-labelledby="title desc">
+  <title id="title">Veyd architecture: Sanity at the source-and-review boundary</title>
+  <desc id="desc">The Next.js app on Vercel manages projects and PDFs. Sanity Content Lake stores original PDF assets and linked extracted entries; people review drafts in Sanity Studio. Published project-scoped GROQ reads supply cited chat, a reusable handbook and read-only MCP. Supporting services are Gemini, Firecrawl, PostgreSQL with Prisma, private Vercel Blob and Upstash Redis.</desc>
+  <metadata>Code-authored explanatory diagram, 2026-10-04. Source: application schemas, services and docs/devto-post-draft.md. Not a system screenshot or AI-generated illustration.</metadata>
+  <defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M1 1 L7 4 L1 7" fill="none" stroke="#087f87" stroke-width="1.5"/></marker></defs>
+  <rect width="1200" height="340" fill="#fcfdfd"/>
+  <g font-family="Arial, sans-serif" fill="#172333">
+    <rect x="0" y="0" width="265" height="186" fill="#edf3f4"/>
+    <text x="24" y="43" font-size="28" font-weight="700">Veyd app</text>
+    <text x="24" y="79" font-size="21">Next.js on Vercel</text>
+    <text x="24" y="127" font-size="21">Projects and PDFs</text>
+    <text x="24" y="158" font-size="18" fill="#475a68">User-owned context</text>
+    <path d="M278 93 H351" stroke="#087f87" stroke-width="2" marker-end="url(#arrow)"/>
+    <rect x="365" y="0" width="470" height="186" fill="#b92d23"/>
+    <g fill="#fff">
+      <text x="391" y="43" font-size="32" font-weight="700">Sanity</text>
+      <text x="391" y="79" font-size="21">Content Lake: PDFs + structured entries</text>
+      <text x="391" y="117" font-size="21">Studio: review drafts against the source</text>
+      <path d="M391 137 H809" stroke="#ffffff" stroke-opacity=".45"/>
+      <text x="391" y="164" font-size="20" font-weight="700">Published, project-scoped GROQ reads</text>
+    </g>
+    <path d="M849 93 H922" stroke="#087f87" stroke-width="2" marker-end="url(#arrow)"/>
+    <rect x="935" y="0" width="265" height="186" fill="#edf3f4"/>
+    <text x="959" y="43" font-size="28" font-weight="700">Reuse knowledge</text>
+    <text x="959" y="87" font-size="21">Cited research chat</text>
+    <text x="959" y="123" font-size="21">Project handbook</text>
+    <text x="959" y="159" font-size="21">Read-only MCP</text>
+    <path d="M0 220 H1200" stroke="#b9c9ce"/>
+    <text x="4" y="256" font-size="22" font-weight="700">Gemini + Firecrawl</text>
+    <text x="4" y="288" font-size="18" fill="#475a68">AI drafts, answers and books</text>
+    <text x="4" y="316" font-size="18" fill="#475a68">External research and PDF parsing</text>
+    <text x="420" y="256" font-size="22" font-weight="700">PostgreSQL + Prisma</text>
+    <text x="420" y="288" font-size="18" fill="#475a68">Accounts, projects and chats</text>
+    <text x="420" y="316" font-size="18" fill="#475a68">Book snapshots and MCP credentials</text>
+    <text x="870" y="256" font-size="22" font-weight="700">Private Blob + Upstash</text>
+    <text x="870" y="288" font-size="18" fill="#475a68">Temporary PDF upload ingress</text>
+    <text x="870" y="316" font-size="18" fill="#475a68">Rate limits and generation lock</text>
+  </g>
+</svg>

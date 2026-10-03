@@ -1,20 +1,20 @@
 # Veyd demo runbook — DEV × Sanity
 
-Use this as an **8-minute recording outline**, not a promise that every AI call will finish within the timestamp. The story is one source becoming a reviewed entry, a cited answer, and a reusable handbook. Open `/demo` locally, or [the public presentation](https://veyd-seven.vercel.app/demo) after this commit is deployed, then show the authenticated app and Sanity Studio.
+Use this as an **8-minute recording outline**, not a promise that every AI call will finish within the timestamp. The story is one source becoming a reviewed entry, a cited answer, and a reusable handbook. Open `/presentation` locally, or [the public presentation](https://veyd-seven.vercel.app/presentation) after deployment, then show the authenticated app and [Sanity Studio](https://sanity-zeta-six.vercel.app/).
 
 ## Prepare the real data
 
 - Have one non-sensitive, text-readable PDF (10 MB / 100 pages maximum) whose source and page numbers you have checked. Prepare a **Food Safety** project with at least one published, human-reviewed entry and a generated handbook. Keep a second project such as **Civil Engineering** to show isolation. These are examples; use your actual project names on screen.
 - Leave one draft ready for review in Studio. Open the original PDF at the cited page so the review is visible, not merely a click on Publish.
 - For the Firecrawl segment, prepare an actual saved research chat that contains an **available PDF file card** from an official source. The card must have a working source link and must not already be imported. If upstream discovery is unavailable during recording, use a previously saved real card or omit that live segment; do not present AI-written card text as an import control.
-- Open Veyd, `/demo` locally (or publicly after deployment), and **Veyd Studio** in separate tabs. Locally, the Documents row's **Review in Studio** action opens `http://localhost:3333`; start it with `pnpm sanity:studio`. On a hosted recording, open the deployed Studio separately because that row currently points to localhost.
+- Open Veyd, `/presentation` locally (or publicly after deployment), and [Veyd Studio](https://sanity-zeta-six.vercel.app/) in separate tabs. For local Studio, use `pnpm sanity:studio` at `http://localhost:3333`. On a hosted recording, open the supplied Studio URL separately; the document row's existing localhost action is outside this presentation update.
 - Check that Gemini, Firecrawl, Sanity, Blob, PostgreSQL and Redis are configured for the flows you will record. Keep credentials, the one-time MCP token, account email, and unrelated project records out of the capture. Record with a dedicated demo account and data you can show publicly.
 
 ## Record the story
 
 | Approx. time | Show on screen | Say in one sentence |
 | --- | --- | --- |
-| 0:00 | `/demo`: **What is Veyd?** and **What does Sanity power?**; select **Open Veyd**. | “Veyd turns project PDFs into reviewed, source-linked knowledge you can search and revisit.” |
+| 0:00 | `/presentation`: hero, **What is Veyd?**, **Why I built Veyd**, architecture and **How is Sanity used?**; open the app. | “I built Veyd to research, learn and reuse domain knowledge in one place, including the same context for agents.” |
 | 0:30 | Sign in. In the sidebar, use **Project → Add** to show project creation, then switch between the two prepared projects. | “Each project keeps its documents, chats, handbook and MCP access separate.” |
 | 1:10 | **Documents → Add a document**: name the PDF, select it, submit; show the processing/Ready state and **Open PDF**. | “The original PDF is kept as a Sanity file asset; AI extraction creates drafts.” |
 | 2:00 | **Veyd Studio → Source Documents**: open the file record, processing status and project ID. Then **Rules Awaiting Review**: compare a draft's requirement, evidence excerpt and source pages with the PDF, correct it, set the review field and publish. Finish at **Published Rules**. | “Sanity holds the linked source and structured entry; a person checks the evidence before it becomes published knowledge.” |
@@ -23,7 +23,7 @@ Use this as an **8-minute recording outline**, not a promise that every AI call 
 | 5:10 | Show **Attach PDF** as the second chat import path. Open **Previous chats** and return to the cited conversation. | “Chat can start from a local file or a discovered source, and the saved discussion remains with its project.” |
 | 5:40 | Return to the prepared project's **Handbook**. Use **Contents**, page controls and a numbered reference; download **PDF** and **Offline** HTML. | “The cited book is stored and reused while its reviewed sources remain current.” |
 | 6:35 | **Connect MCP**: show the project name, endpoint and existing credential metadata. In a preconfigured compatible MCP client, run one read-only lookup and show the returned published entry. | “The custom MCP endpoint reads this project's published knowledge.” |
-| 7:20 | In a separate throwaway project, open a document's action menu and **Remove from project**; reopen an older cited chat if you prepared one. End on the `/demo` closing slide. | “Removal clears active context while historical answers retain their source attribution.” |
+| 7:20 | In a separate throwaway project, open a document's action menu and **Remove from project**; reopen an older cited chat if you prepared one. End on the `/presentation` closing slide. | “Removal clears active context while historical answers retain their source attribution.” |
 
 Allow extra time for upload, extraction and first handbook generation. A shorter video can use a previously completed, real ingestion and show the review, cited answer and book in full. Do not imply that a prepared result was produced instantaneously in the recording.
 

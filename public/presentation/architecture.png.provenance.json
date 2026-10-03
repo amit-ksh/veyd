@@ -1,0 +1,7 @@
+{
+  "origin": "architecture.svg, a code-authored explanatory diagram in this directory",
+  "authoringDate": "2026-10-04",
+  "kind": "browser-rendered vector diagram, not a product screenshot or AI-generated image",
+  "sources": ["docs/devto-post-draft.md", "sanity/schemaTypes/complianceDocument.ts", "sanity/schemaTypes/complianceRule.ts", "src/lib/sanity/published-queries.ts"],
+  "render": "Render architecture.svg in Chromium at 1200 by 340 CSS pixels, device scale 1, then capture the SVG element as PNG. No external assets or fonts are required."
+}

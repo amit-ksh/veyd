@@ -105,10 +105,10 @@
   ],
   "narrative": {
     "northStar": "handbook aesthetic",
-    "overview": "The existing application uses compact sans-serif controls, white panels, cool slate backgrounds and dark text. Cyan marks interaction and focus. The handbook reader adds white paper on a gray desk, serif chapter headings and generous reading space.\n\nThis record describes the incumbent implementation in `src/app/globals.css`, `tailwind.config.ts`, `src/components/` and `src/lib/handbook/reader.css`. Presentation geometry and DEV × Sanity co-branding belong to the `/demo` surface brief.",
+    "overview": "The existing application uses compact sans-serif controls, white panels, cool slate backgrounds and dark text. Cyan marks interaction and focus. The handbook reader adds white paper on a gray desk, serif chapter headings and generous reading space.\n\nThis record describes the incumbent implementation in `src/app/globals.css`, `tailwind.config.ts`, `src/components/` and `src/lib/handbook/reader.css`. Presentation geometry and DEV × Sanity co-branding belong to the `/presentation` surface brief.",
     "keyCharacteristics": ["White and slate surfaces with dark action controls.", "Cyan interaction accents and visible keyboard focus.", "Compact application typography beside a serif handbook hierarchy.", "Borders and restrained shadows distinguish panels, paper and overlays."],
     "rules": [],
     "dos": ["Do reuse the existing white/slate/dark/cyan roles for application controls.", "Do keep the reader's Georgia headings and Arial prose in their reading context.", "Do preserve visible focus, disabled states and text labels for status.", "Do retain the implemented wrapping and stacked mobile navigation patterns."],
-    "donts": ["Don't apply `/demo` slide geometry or challenge branding to other application surfaces.", "Don't replace existing application controls with the presentation's larger type scale.", "Don't treat an extracted theme token as evidence that every screen supports that theme."]
+    "donts": ["Don't apply `/presentation` slide geometry or challenge branding to other application surfaces.", "Don't replace existing application controls with the presentation's larger type scale.", "Don't treat an extracted theme token as evidence that every screen supports that theme."]
   }
 }

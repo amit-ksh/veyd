@@ -81,4 +81,5 @@ Milestone 15 adds user-confirmed web-PDF import. Chat research itself still neve
 
 - [Demo recording runbook](hackathon-demo-runbook.md): the app and Sanity Studio screens to show, in order.
 - [DEV.to post draft](devto-post-draft.md): a short Path Two post with required links and judge-access fields clearly marked.
+- [Agent-session highlights](agent-session-highlights.md): minimal, edited build-conversation notes; not an exported transcript.
 - [Challenge research](devto-challenge-research.md): first-party requirements, deadline and feature-claim boundaries.

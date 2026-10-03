@@ -116,7 +116,7 @@ components:
 
 The existing application uses compact sans-serif controls, white panels, cool slate backgrounds and dark text. Cyan marks interaction and focus. The handbook reader adds white paper on a gray desk, serif chapter headings and generous reading space.
 
-This record describes the incumbent implementation in `src/app/globals.css`, `tailwind.config.ts`, `src/components/` and `src/lib/handbook/reader.css`. Presentation geometry and DEV × Sanity co-branding belong to the `/demo` surface brief.
+This record describes the incumbent implementation in `src/app/globals.css`, `tailwind.config.ts`, `src/components/` and `src/lib/handbook/reader.css`. Presentation geometry and DEV × Sanity co-branding belong to the `/presentation` surface brief.
 
 **Key Characteristics:**
 
@@ -180,6 +180,6 @@ Reader buttons are compact bordered controls with a minimum height and disabled 
 
 ### Don't:
 
-- **Don't** apply `/demo` slide geometry or challenge branding to other application surfaces.
+- **Don't** apply `/presentation` slide geometry or challenge branding to other application surfaces.
 - **Don't** replace existing application controls with the presentation's larger type scale.
 - **Don't** treat an extracted theme token as evidence that every screen supports that theme.

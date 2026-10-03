@@ -1,5 +1,5 @@
 ---
-title: "Veyd: turning source PDFs into reviewed project knowledge with Sanity"
+title: "Veyd: one place to research, learn, and build across domains"
 published: false
 tags: devchallenge, sanitychallenge, sanity, ai
 ---
@@ -12,7 +12,7 @@ Veyd is a project workspace for researching documents with a clear path back to 
 
 ### Why I built it
 
-I wanted a central knowledge base for learning any domain. I build software across different fields, and each new project means researching a domain whose useful information is scattered across repositories and source documents. Veyd gives me one place to collect sources, research and learn from them, and return to the material through a project handbook. I can also share that project knowledge with compatible AI agents through MCP, so they work from the same context.
+I wanted a central knowledge base for learning any domain & its standards. I build software across different fields, and each new project means researching a domain whose useful information is scattered across repositories and source documents. Veyd gives me one place to collect sources, research and learn from them, and return to the material through a project handbook. I can also share that project knowledge with compatible AI agents through MCP, so they work from the same context.
 
 ### Features
 
@@ -24,24 +24,17 @@ I wanted a central knowledge base for learning any domain. I build software acro
 
 ### Architecture at a glance
 
-```text
-User → Next.js app/API on Vercel
-         ├─ PostgreSQL + Prisma → accounts, projects, chats, handbook snapshots, MCP credentials
-         ├─ Private Vercel Blob → temporary PDF upload ingress
-         ├─ Gemini → draft extraction, cited answers, handbook writing
-         ├─ Firecrawl → external research and public PDF parsing
-         └─ Sanity Content Lake → original PDF assets + linked, structured entries
-                ↑                         │
-         Sanity Studio review              └─ published, project-scoped GROQ reads
-                                             → chat, handbook and read-only MCP
-```
+[![Veyd architecture: the app connects to Sanity's PDF assets, structured entries and Studio review; published GROQ reads power chat, handbook and MCP. Supporting services are Gemini, Firecrawl, PostgreSQL, private Blob and Upstash.](https://veyd-seven.vercel.app/presentation/architecture.png)](https://veyd-seven.vercel.app/presentation/architecture.png)
+
+Sanity holds the source knowledge and review workflow. PostgreSQL + Prisma keep accounts, projects, chats, handbook snapshots and MCP credentials. Gemini writes drafts and answers; Firecrawl discovers sources and parses public PDFs. Private Vercel Blob provides temporary upload storage.
 
 Upstash Redis handles rate limits and the handbook generation lock. The key boundary is that extraction creates **drafts**; only human-reviewed, published Sanity entries become reusable project knowledge.
 
 ## Demo
 
 - **Live app:** [veyd-seven.vercel.app](https://veyd-seven.vercel.app/)
-- **Public presentation:** ADD_DEPLOYED_DEMO_URL
+- **Public presentation:** [Veyd presentation](https://veyd-seven.vercel.app/presentation)
+- **Sanity app:** [Veyd Sanity Studio](https://sanity-zeta-six.vercel.app/)
 - **Walkthrough video or screenshots:** ADD_VIDEO_OR_SCREENSHOT_LINKS
 - **Judge access:** ADD_DEMO_SIGN_IN_AND_STUDIO_ACCESS_INSTRUCTIONS
 
@@ -65,12 +58,32 @@ Sanity is Veyd's source-and-review layer:
 
 Gemini handles extraction, answer writing and handbook drafting; Firecrawl handles external discovery and public PDF parsing. Veyd's MCP endpoint is **not** Sanity Context MCP.
 
+### Sanity schema structure
+
+The active knowledge model keeps each entry connected to its original source:
+
+`complianceRule.sourceDocument` → `complianceDocument.fileAsset` → Sanity PDF asset.
+
+| Type | What it stores |
+| --- | --- |
+| `complianceDocument` | `projectId`, title, PDF asset, original filename, size, page count, processing status and extraction metadata. |
+| `complianceRule` | `projectId`, name, description, requirement, applicability, authority/citation, source document reference, pages, evidence excerpt, keywords, freshness and `lastReviewedAt`. |
+
+Studio requires a human review timestamp before publication. Project-matched, published GROQ reads exclude drafts; the app also excludes removed documents. Projects are PostgreSQL records, linked here through `projectId`, not Sanity project documents. The [schema definitions](https://github.com/amit-ksh/veyd/tree/main/sanity/schemaTypes) remain the source of truth; registered legacy types are retained for migration safety, not used as the current chat/handbook store.
+
 ## Sanity Project Details
 
 **Sanity project ID:** `erhznx84`
 
 ## Agent Session
 
-ADD_PUBLIC_AGENT_SESSION_LINK_OR_REMOVE_THIS_OPTIONAL_SECTION
+Curated highlights from my implementation conversation, edited for clarity:
 
-<!-- This is a Path Two draft. Do not switch its heading to Path One unless a real Sanity Context Knowledge Base or eligible full-dataset Context MCP integration is implemented and verified; Veyd's custom MCP endpoint alone does not meet that claim. Before publishing: expand the Antigravity sentence if the author supplies its exact contribution. /demo returned 404 on 2026-10-03 and needs deployment and recheck. Replace all remaining ADD_* fields with working public links and judge access instructions, or remove optional sections that do not apply. If using an Agent Session, curate it, check for secrets and make it public. Confirm repository visibility and the Sanity project ID for the deployed environment. Add a cover image if desired. If this is a team submission, list each teammate's DEV handle. -->
+- I started with a central knowledge base: research a domain, learn from its sources, revisit a handbook, and share the same context with agents.
+- I asked Codex to turn the scope into feature milestones and reusable repository skills, keeping project isolation and human review explicit.
+- We built cited research, stored handbooks and confirmed PDF import from chat. Private uploads and failing public PDF downloads led to storage fixes and Firecrawl parsing.
+- I refined the UI into a minimal reader and presentation, then asked for type/build checks and manual browser verification.
+
+These are a summary, not a raw exported agent transcript. [Focused session notes](https://github.com/amit-ksh/veyd/blob/main/docs/agent-session-highlights.md) provide the short recording outline.
+
+<!-- This is a Path Two draft. Do not switch its heading to Path One unless a real Sanity Context Knowledge Base or eligible full-dataset Context MCP integration is implemented and verified; Veyd's custom MCP endpoint alone does not meet that claim. Before publishing: deploy and verify /presentation and /presentation/architecture.png, and commit/push the linked session notes. Replace remaining ADD_* fields with working video/screenshot links and judge access instructions, or remove optional fields. The Sanity app URL was supplied by the author; verify judge access separately. Confirm repository visibility, the main branch links and the deployed Sanity project ID. Expand Antigravity's contribution only from the author's evidence. If embedding an actual Agent Session, export a genuine transcript, curate/redact it and make it public; the summary above is not an exported session. Add a cover image if desired. Team submissions must credit DEV handles. -->
