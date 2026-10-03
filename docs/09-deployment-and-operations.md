@@ -6,6 +6,7 @@ Deploy the Next.js application to Vercel and the standalone Studio to Sanity, co
 
 ## Vercel application configuration
 
+- Use the repository's `pnpm run build` command. It explicitly runs `prisma generate` before `next build`, so fresh installs and cached Vercel dependencies both use client types generated from the committed schema. The root `postinstall` hook also generates the client for local installs. Generation writes client artifacts only; database migrations remain a separate operator action.
 - Use the Node.js runtime for PDF parsing, private Blob access, Sanity asset upload, AI SDK, and MCP.
 - Set the ingestion route's `maxDuration` to the maximum supported by the selected Vercel plan. The target is 300 seconds; a plan limited to 60 seconds may not reliably process a 100-page PDF synchronously.
 - Keep chat streaming enabled and start the response within the platform's streaming deadline.
@@ -104,4 +105,12 @@ Monitor at minimum:
   - Standalone Sanity Studio built successfully with Vite (`pnpm --dir sanity build`).
   - Next.js production bundle built successfully (`pnpm build`).
   - Scratch verification script `scratch/verify-m9.mjs` passed all health, correlation ID roundtrip, MCP auth gate, and configuration checks.
+
+## Build repair — 2026-10-03
+
+The reported `TS7006` at `src/lib/conversations/service.ts:84` was reproduced in a read-only TypeScript compiler run using Prisma 6.4.0's own ungenerated-client declaration. It produced the exact reported error plus 16 related diagnostics across conversations, handbook, credentials and tombstones. The generated local client passed the same project's strict type check. This supports missing client generation as the deployment failure's cause; the failed Vercel build environment itself was not inspected.
+
+The root build and install hooks now generate the client explicitly. This follows [Prisma's Vercel build guidance](https://docs.prisma.io/docs/orm/v6/prisma-client/deployment/serverless/deploy-to-vercel#updating-prisma-client-during-vercel-builds), accessed 2026-10-03. Type checking remains strict; no application callback was changed to `any`, no generated client was committed, and no schema migration or secret change was made.
+
+Verification: `pnpm run build`, `pnpm exec tsc --noEmit --incremental false`, `pnpm exec prisma validate`, `pnpm --dir sanity exec tsc --noEmit`, `pnpm --dir sanity build`, and the root offline frozen-lockfile check passed. These are local build results, not confirmation of a successful Vercel deployment. Existing major-version advisories are non-blocking and no dependency upgrade was performed. The chat-document-ingestion extension is not part of this build repair.
 
